@@ -39,7 +39,12 @@
 - 手动检查：Debug App 启动正常；通过 `easydictd://query?text=…` 拉起查询窗口，中文自动译为英文。
 - 手动检查：将预览视图离线渲染为浅色/深色两种外观，确认处理中、流式、已替换、已复制、失败五种状态
   排版正常（离线渲染无法呈现毛玻璃与系统进度动画）。
-- 未验证：替换与上屏的端到端写回需要为 Debug App 授予辅助功能权限后手动测试。
+- 端到端（TextEdit，DeepSeek `deepseek-v4-flash`，按键由已授权辅助功能的终端模拟）：
+  - `⌥R` 翻译并替换：自动全选后中译英、英译中均约 1 秒完成，经 Accessibility 一次性写回；
+    悬浮预览依次显示处理中、已替换并淡出。首轮测试发现预览不显示：`NSHostingView` 关闭
+    sizing options 后 `fittingSize` 为零，改用 `NSHostingController.sizeThatFits(in:)` 后修复。
+  - `⌘↩` 翻译并上屏：关闭查询窗口约 0.1 秒后，在原光标处插入 DeepSeek 已完成的译文。
+- 未验证：Accessibility 不可写时的粘贴兜底、网络失败时的预览提示（仅离线渲染检查）。
 
 ### 受影响文件
 

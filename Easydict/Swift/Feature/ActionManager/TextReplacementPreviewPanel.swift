@@ -31,7 +31,7 @@ final class TextReplacementPreviewPanel {
         self.anchorRect = anchorRect ?? mouseAnchorRect()
         placesAboveAnchor = nil
 
-        hostingView.rootView = TextReplacementPreviewView(model: model)
+        hostingController.rootView = TextReplacementPreviewView(model: model)
         modelObservation = model.objectWillChange.sink { [weak self] _ in
             // `objectWillChange` fires before the new value is stored, so measure on the next turn.
             DispatchQueue.main.async { self?.updateFrame() }
@@ -67,6 +67,8 @@ final class TextReplacementPreviewPanel {
     private static let fadeOutDuration: TimeInterval = 0.22
     /// Vertical distance between the caret and the card.
     private static let anchorGap: CGFloat = 6
+    /// Unconstrained proposal so the card reports its natural size; its width is fixed in SwiftUI.
+    private static let maximumMeasureSize = CGSize(width: 10_000, height: 10_000)
 
     private var presentedModel: TextReplacementPreviewModel?
     private var modelObservation: AnyCancellable?
@@ -75,16 +77,17 @@ final class TextReplacementPreviewPanel {
     /// Placement is decided once per presentation so the card does not jump while it grows.
     private var placesAboveAnchor: Bool?
 
-    private lazy var hostingView: NSHostingView<TextReplacementPreviewView> = {
+    private lazy var hostingController: NSHostingController<TextReplacementPreviewView> = {
         let placeholder = TextReplacementPreviewModel(
             serviceName: "",
             serviceIconName: "",
             activity: .translating
         )
-        let view = NSHostingView(rootView: TextReplacementPreviewView(model: placeholder))
-        // The panel frame is managed manually to keep the card pinned to the caret.
-        view.sizingOptions = []
-        return view
+        let controller = NSHostingController(rootView: TextReplacementPreviewView(model: placeholder))
+        // The panel frame is managed manually to keep the card pinned to the caret. Without
+        // sizing options the view reports a zero `fittingSize`, so measure via `sizeThatFits`.
+        controller.sizingOptions = []
+        return controller
     }()
 
     private lazy var panel: NSPanel = {
@@ -104,12 +107,12 @@ final class TextReplacementPreviewPanel {
         panel.isReleasedWhenClosed = false
         panel.animationBehavior = .none
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary, .ignoresCycle]
-        panel.contentView = hostingView
+        panel.contentView = hostingController.view
         return panel
     }()
 
     private func updateFrame() {
-        let size = hostingView.fittingSize
+        let size = hostingController.sizeThatFits(in: Self.maximumMeasureSize)
         guard size.width > 0, size.height > 0 else {
             return
         }
