@@ -26,6 +26,9 @@ extension ShortcutManager {
         Defaults[.silentScreenshotOCRShortcut] = KeyCombo(
             key: .s, cocoaModifiers: [.option, .shift]
         )
+        // Typing Chinese and pressing ⌥R to get English is the core Easydict Plus workflow.
+        Defaults[.translateAndReplaceShortcut] = KeyCombo(key: .r, cocoaModifiers: .option)
+        Defaults[.polishAndReplaceShortcut] = KeyCombo(key: .r, cocoaModifiers: [.option, .shift])
     }
 
     private func setDefaultAppShortcutKeys() {

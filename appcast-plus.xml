@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle">
+  <channel>
+    <title>Easydict Plus</title>
+    <link>https://github.com/pairslab/easydict-plus/releases</link>
+    <description>Easydict Plus 不通过应用内更新发布新版本，请前往 GitHub Releases 下载。</description>
+    <language>zh-cn</language>
+  </channel>
+</rss>

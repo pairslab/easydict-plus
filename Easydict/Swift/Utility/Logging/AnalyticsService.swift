@@ -21,6 +21,9 @@ final class AnalyticsService: NSObject {
     @objc(setupCrashLogService)
     static func setupCrashService() {
         #if !DEBUG
+        guard reportsToUpstream else {
+            return
+        }
         configureFirebaseIfNeeded()
         SentrySDK.start { options in
             options.dsn = SecretKeyManager.keyValues["sentryDSN"]
@@ -50,7 +53,7 @@ final class AnalyticsService: NSObject {
     /// - Parameters should use string keys and values that are compatible with analytics.
     @objc(logEventWithName:parameters:)
     static func logEvent(withName name: String, parameters: [String: Any]?) {
-        guard MyConfiguration.shared.allowAnalytics else {
+        guard MyConfiguration.shared.allowAnalytics, reportsToUpstream else {
             return
         }
 
@@ -117,6 +120,12 @@ final class AnalyticsService: NSObject {
             FirebaseApp.configure()
         }
     }()
+
+    /// Whether this build may report to the upstream Firebase and Sentry projects, which belong to the
+    /// official Easydict. Builds with their own bundle identifier, such as forks, never report there.
+    private static var reportsToUpstream: Bool {
+        Bundle.main.bundleIdentifier == AppConstants.bundleID
+    }
 
     /// Ensures Firebase is configured only once.
     private static func configureFirebaseIfNeeded() {
