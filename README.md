@@ -1,146 +1,240 @@
-<p align="center">
-  <img src="https://raw.githubusercontent.com/tisfeng/ImageBed/main/uPic/icon_512x512@2x.png" height="256">
-  <h1 align="center">Easydict</h1>
-  <h4 align="center"> Easy to look up words or translate text</h4>
-<p align="center"> 
-<a href="https://github.com/tisfeng/easydict/blob/main/LICENSE">
-<img src="https://img.shields.io/github/license/tisfeng/easydict"
-            alt="License"></a>
-<a href="https://github.com/tisfeng/Easydict/releases">
-<img src="https://img.shields.io/github/downloads/tisfeng/easydict/total.svg"
-            alt="Downloads"></a>
-<a href="https://img.shields.io/badge/-macOS-black?&logo=apple&logoColor=white">
-<img src="https://img.shields.io/badge/-macOS-black?&logo=apple&logoColor=white"
-            alt="macOS"></a>  
-</p>
+# Easydict Plus
 
-<div align="center">
-<a href="./README_ZH.md">中文</a> &nbsp;&nbsp;|&nbsp;&nbsp; <a href="./README.md">English</a>
-</div>
+**边读边写的英语助手：打中文秒变英文，指着英文秒出中文。**
 
-## Easydict
+基于开源翻译工具 [Easydict](https://github.com/tisfeng/Easydict) 二次开发，专门为"把电脑切成英文、在日常使用中学英语"的人优化。全部功能**只需要配置一个 DeepSeek API Key**，查词部分完全免费。
 
-`Easydict` is a concise and easy-to-use translation dictionary macOS App that allows you to easily and elegantly look up words or translate text.
-
-Easydict is ready to use out of the box, can automatically recognize the language of the input text, supports input translate, select translate, and OCR screenshot translate, and can query multiple translation services results at the same time.
-
-**Supported services:** 20+ dictionary, translation, AI, local-model, and CLI services, including
-Apple Dictionary, MDict, Apple Translate, OpenAI, Gemini, Claude, DeepSeek, Ollama, Claude Code,
-Codex CLI, DeepL, Google, and Bing. See the [services overview](./docs/user-docs/en/SERVICES.md) for
-the complete list and access requirements.
-
-![Log](https://raw.githubusercontent.com/tisfeng/ImageBed/main/uPic/Log-1688378715.png)
-
-<table>
-    <td> <img src="https://raw.githubusercontent.com/tisfeng/ImageBed/main/uPic/iShot_2023-05-28_16.32.18-1685262784.png">
-    <td> <img src="https://raw.githubusercontent.com/tisfeng/ImageBed/main/uPic/iShot_2023-05-28_16.32.26-1685262803.png">
-</table>
-
-![immerse-1686534718.gif](https://raw.githubusercontent.com/tisfeng/ImageBed/main/uPic/immerse-1686534718.gif)
-
-## Features
-
-- 🚀 Out of the box, automatic language recognition
-- 🖱️ Auto select with mouse and shortcut key
-- 📸 OCR screenshot translation and silent screenshot OCR
-- 🔊 Multiple TTS voice services
-- 📚 Support 🍎 [Apple Dictionary](./docs/user-docs/en/How-to-use-macOS-system-dictionary-in-Easydict.md) and [Apple Translate](./docs/user-docs/en/How-to-use-macOS-system-translation-in-Easydict.md)
-- 🌐 Support 20+ dictionary, translation, AI, local-model, and CLI services
-- 🗣️ Support 52 selectable translation languages
-
-**If you like this app, please consider giving it a [Star](https://github.com/tisfeng/Easydict) ⭐️, thanks! (^-^)**
-
-## Contributing
-
-Contributions through issues and pull requests are welcome. Read the Chinese
-[contribution guide](./CONTRIBUTING.md) for the development workflow and pull
-request requirements.
-
-### AI Coding
-
-We welcome contributions assisted by programming agents such as `Codex` and
-`Claude`. Prefer the latest available GPT or Claude model suitable for complex
-coding tasks, and carefully review and test the final changes. See the Chinese
-[contribution guide](./CONTRIBUTING.md) for the Agent workflow and
-review requirements.
-
-## Issue/PR Triage Notes
-
-The maintainer has been quite busy recently and usually only has time to triage issues on weekends. PRs (especially bugfix PRs) are prioritized. Also, due to an overloaded inbox and notifications, some messages may not be seen or replied to promptly. Thanks for your understanding.
-
-## Installation
-
-### Homebrew Installation (Recommended)
-
-```bash
-brew install --cask easydict
-```
-
-### Manual Installation
-
-[Download](https://github.com/tisfeng/Easydict/releases) the latest release.
-
-> [!NOTE]
-> Latest version supports macOS 13.0+, for older systems please use [2.7.2](https://github.com/tisfeng/Easydict/releases/tag/2.7.2)
+![按住 ⌃ 悬停翻译整段](docs/assets/easydict-plus/hover-translation.png)
 
 ---
 
-## Usage
+## 目录
 
-| Ways                      | Description                                                                                                                                  | Preview                                                                                                                                        |
-| ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
-| Input Translate           | Press the input translate shortcut key (default `⌥ + A`), enter the text to be translated, and `Enter` key to translate          | ![iShot_2023-01-20_11.28.46-1674185354](https://raw.githubusercontent.com/tisfeng/ImageBed/main/uPic/iShot_2023-01-20_11.28.46-1674185354.gif) |
-| Mouse Select Translate    | The query icon is automatically displayed after the word is selected, and the mouse hovers over it to query                                  | ![iShot_2023-01-20_11.01.35-1674183779](https://raw.githubusercontent.com/tisfeng/ImageBed/main/uPic/iShot_2023-01-20_11.01.35-1674183779.gif) |
-| Shortcut Select Translate | After selecting the text to be translated, press the shortcut key (default `⌥ + D`)                                                          | ![iShot_2023-01-20_11.24.37-1674185125](https://raw.githubusercontent.com/tisfeng/ImageBed/main/uPic/iShot_2023-01-20_11.24.37-1674185125.gif) |
-| Screenshot Translate      | Press the screenshot translate shortcut key (default `⌥ + S`) to capture the area to be translated                                           | ![iShot_2023-01-20_11.26.25-1674185209](https://raw.githubusercontent.com/tisfeng/ImageBed/main/uPic/iShot_2023-01-20_11.26.25-1674185209.gif) |
-| Silent Screenshot OCR     | Press the Silent Screenshot shortcut key（default `⌥ + ⇧ + S`）to capture the area, the OCR results will be copied directly to the clipboard | ![屏幕录制 2023-05-20 22 39 11](https://github.com/Jerry23011/Easydict/assets/89069957/c16f3c20-1748-411e-be04-11d8fe0e61af)                     |
-
----
-
-## Documentation
-
-- 📖 [Complete Usage Guide](./docs/user-docs/en/GUIDE.md) - Detailed features, configuration and tips
-- 🌐 [Services Overview](./docs/user-docs/en/SERVICES.md) - Complete service list and access requirements
-- 🔧 [Developer Build Guide](./docs/user-docs/en/GUIDE.md#developer-build) - Build and run from source code
-- 🍎 [How to use Apple Dictionary](./docs/user-docs/en/How-to-use-macOS-system-dictionary-in-Easydict.md)
-- 📚 [How to use MDict](./docs/user-docs/en/How-to-use-MDict-in-Easydict.md)
-- 🍎 [How to use Apple Translate](./docs/user-docs/en/How-to-use-macOS-system-translation-in-Easydict.md)
-- 🌍 [How to translate Easydict](./docs/user-docs/en/How-to-translate-Easydict.md)
+- [它能做什么](#它能做什么)
+- [和原版 Easydict 相比新增了什么](#和原版-easydict-相比新增了什么)
+- [第一步：安装](#第一步安装)
+- [第二步：首次设置（5 分钟）](#第二步首次设置5-分钟)
+- [第三步：开始使用](#第三步开始使用)
+- [费用说明](#费用说明)
+- [常见问题](#常见问题)
+- [给开发者](#给开发者)
+- [致谢与开源协议](#致谢与开源协议)
 
 ---
 
-## Acknowledgements
+## 它能做什么
 
-- This project was inspired by [saladict](https://github.com/crimx/ext-saladict) and [Bob](https://github.com/ripperhe/Bob), and the initial version was made based on [Bob (GPL-3.0)](https://github.com/1xiaocainiao/Bob). Easydict has made many improvements and optimizations on the original project, and many features and UI are referenced from Bob.
-- Screenshot feature is based on [isee15](https://github.com/isee15)'s [Capture-Screen-For-Multi-Screens-On-Mac](https://github.com/isee15/Capture-Screen-For-Multi-Screens-On-Mac), and optimized on this project.
-- Select text feature is referenced from [PopClip](https://pilotmoon.com/popclip/).
+| 你想做什么 | 怎么操作 | 效果 |
+| --- | --- | --- |
+| 打字时把中文变成英文 | 打完中文，按 `⌥R` | 原地替换成英文，任何 App 的输入框都行 |
+| 先看看译文再发出去 | `⌥A` 打开小窗口输入中文，按 `⌘↩` | 英文直接打到原来的光标位置 |
+| 读懂一整段英文 | 鼠标指着段落，**按住 `⌃`** | 段落下方弹出中文译文 |
+| 查一个单词 | **双击**单词 | 弹出音标、释义，以及它**在这句话里**的意思 |
+| 自己写的英文想改得更地道 | 选中英文，按 `⇧⌥R` | AI 帮你润色并原地替换 |
 
-## Statement
-
-Easydict is licensed under the [GPL-3.0](https://github.com/tisfeng/Easydict/blob/main/LICENSE) open source license, which is for learning and communication only. Anyone can get this product and source code for free. If you believe that your legal rights have been violated, please contact the [author](https://github.com/tisfeng) immediately. You can use the source code freely, but you must attach the corresponding license and copyright.
-
-## Sponsor
-
-Easydict is a free and open source project, currently mainly developed and maintained by the author. If you like this project and find it helpful, you can consider sponsoring this project to support it, so that it can go further.
-
-Thanks to [@CanglongCl](https://github.com/CanglongCl) for providing the Apple Developer account, which solved the app [signature issue](https://github.com/tisfeng/Easydict/issues/2), allowing more people to use Easydict conveniently.
-
-<a href="https://afdian.com/a/tisfeng"><img width="20%" src="https://pic1.afdiancdn.com/static/img/welcome/button-sponsorme.jpg" alt=""></a>
-
-<div>
-  <img src="https://raw.githubusercontent.com/tisfeng/ImageBed/main/uPic/IMG_4739-1684680971.JPG" width="30%">
-</div>
-
-Thanks to all sponsors for their generous support. For details, please see the [Sponsor List](./docs/user-docs/en/SPONSOR_LIST.md).
+> 键位说明：`⌥` 是 Option 键，`⌃` 是 Control 键，`⌘` 是 Command 键，`⇧` 是 Shift 键，`↩` 是回车键。
 
 ---
 
-## Star History
+## 和原版 Easydict 相比新增了什么
 
-<a href="https://tisfeng.github.io/Easydict/star-history/#tisfeng/easydict&Date">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="./docs/assets/star-history/star-history-dark.svg" />
-    <source media="(prefers-color-scheme: light)" srcset="./docs/assets/star-history/star-history-light.svg" />
-    <img alt="Star History Chart" src="./docs/assets/star-history/star-history-light.svg" />
-  </picture>
-</a>
+- **翻译并替换可以用自己的 AI 服务**：原版固定用内置 AI，现在可以选 DeepSeek 等任意已配置的服务
+- **光标旁的悬浮预览卡片**：翻译过程实时可见，完成后显示"✓ 已替换"
+- **更安全的替换**：译文完整生成后才替换，失败时保留原文；写入后会核对结果，Claude 桌面版这类 Electron 应用不接受直接写入时，自动改用粘贴；焦点切走时改为复制到剪贴板
+- **查询窗口一键上屏**：`⌘↩` 关闭窗口并把译文打到原来的光标位置
+- **按住 `⌃` 悬停翻译整段**：不用选中文字，指哪翻哪
+- **双击查词**：带箭头的词典气泡，附 AI 给出的"此处"语境义
+- 默认关闭自动检查官方更新，避免增强版被官方原版覆盖
+
+---
+
+## 第一步：安装
+
+目前需要在自己的 Mac 上编译一次，大约 10～20 分钟（第一次下载依赖比较慢）。
+
+**需要准备**：macOS 13 或更新版本，以及从 App Store 安装的 **Xcode**。
+
+1. 下载代码（在"终端"里运行）：
+
+   ```bash
+   git clone https://github.com/pairslab/easydict-plus.git
+   ```
+
+2. 用 Xcode 打开项目文件夹里的 **`Easydict.xcworkspace`**（注意不是 `.xcodeproj`）。
+3. 窗口顶部的 Scheme 选择 **Easydict**，按 `⌘R` 编译运行。
+4. 运行成功后，屏幕右上角的菜单栏会出现 Easydict 图标。
+5. 想长期使用的话：在 Xcode 菜单里选 **Product → Show Build Folder in Finder**，进入 `Products/Debug`，把 `Easydict-debug.app` 拖进"应用程序"文件夹，以后直接打开它即可。
+
+> **小提示**：默认的临时签名，会让 macOS 在每次重新编译后要求你重新授权辅助功能。如果你有 Apple 开发者证书，在项目目录运行 `./scripts/setup-team.sh` 就能避免这个问题。
+
+---
+
+## 第二步：首次设置（5 分钟）
+
+### 1. 打开辅助功能权限
+
+替换文字、读取鼠标下的段落都需要这个权限。
+
+打开 **系统设置 → 隐私与安全性 → 辅助功能**（新版 macOS 叫"设备控制和数据访问"），找到 **Easydict** 并打开开关。如果列表里没有，点左下角的 **+** 把 App 加进去。
+
+### 2. 申请 DeepSeek API Key
+
+1. 打开 [DeepSeek 开放平台](https://platform.deepseek.com)，注册并登录。
+2. 充值一点余额（几块钱就能用很久，见[费用说明](#费用说明)）。
+3. 在 **API Keys** 页面点"创建 API Key"，复制以 `sk-` 开头的那串字符。
+
+> API Key 相当于你账户的密码，不要发给别人，也不要提交到代码仓库里。
+
+### 3. 在 Easydict 里填入 DeepSeek
+
+点菜单栏的 Easydict 图标 → **设置** → **服务**：
+
+1. 左边的列表里如果没有"DeepSeek 翻译"，点下方的 **+** 添加。
+2. 把 DeepSeek **拖到列表第一位**（`⌘↩` 上屏用的是第一个服务的结果）。不需要的服务可以关掉开关。
+3. 在右边粘贴 **API Key**。
+4. **思考程度**选 **关闭**，翻译会快很多，也更省钱。
+
+![在服务页配置 DeepSeek](docs/assets/easydict-plus/settings-services-deepseek.png)
+
+### 4. 让"翻译并替换"使用 DeepSeek
+
+**设置 → 高级 → 翻译并替换 → 翻译服务**，选 **DeepSeek 翻译**。
+
+同一页的 **阅读辅助** 里可以开关"双击查词"，也可以修改悬停翻译的触发键（`⌃` / `⌥` / `⇧` / 关闭）。
+
+![高级设置里的翻译并替换与阅读辅助](docs/assets/easydict-plus/settings-advanced.png)
+
+### 5. 设置快捷键
+
+**设置 → 快捷键**，给下面两项各设一个快捷键（推荐和截图里一样）：
+
+- **翻译并替换**：`⌥R`
+- **润色并替换**：`⇧⌥R`
+
+![快捷键设置](docs/assets/easydict-plus/settings-shortcuts.png)
+
+### 6. 确认语言
+
+**设置 → 通用 → 查询语言**：第一语言选 **简体中文**，第二语言选 **英语**。
+
+这样输入中文会翻成英文，输入英文会翻成中文。把系统语言切换成英文之后，这个规则依然有效。
+
+![通用设置里的语言](docs/assets/easydict-plus/settings-general.png)
+
+设置完成，可以开始用了。
+
+---
+
+## 第三步：开始使用
+
+### 打字时：`⌥R` 原地中译英
+
+在任何输入框（微信、浏览器、邮件、备忘录……）里照常打中文，按 `⌥R`。光标旁会出现一张小卡片，实时显示翻译进度，大约 1 秒后中文就变成了英文。
+
+- 不用先选中文字：没选中时，会自动翻译整个输入框的内容
+- 只想翻其中一句：先选中那一句再按 `⌥R`
+- 反过来也可以：选中英文按 `⌥R`，就变成中文
+
+![打中文，按 ⌥R，原地变成英文](docs/assets/easydict-plus/translate-and-replace.png)
+
+### 先看看再发：`⌥A` 输入，`⌘↩` 上屏
+
+按 `⌥A` 打开输入窗口，输入中文，DeepSeek 的译文会显示在下方。确认没问题后按 `⌘↩`，窗口自动关闭，英文会出现在你原来打字的位置。
+
+![在查询窗口里确认译文后按 ⌘↩ 上屏](docs/assets/easydict-plus/query-insert.png)
+
+### 读整段英文：按住 `⌃`
+
+鼠标指着网页、文档里的任意一段外文，**按住 `⌃` 键**：
+
+1. 这一段周围出现一圈淡淡的高亮框，告诉你要翻译的范围
+2. 按住不放、移动鼠标，高亮框会跟着在段落之间滑动
+3. 停留片刻，或者直接松开 `⌃`，段落正下方就会淡入中文译文
+4. 鼠标移开、滚动页面、点击或按 Esc，卡片自动消失
+
+看过的段落再看时会直接显示，不会重复消耗 API。中文段落不会弹出卡片。效果图见本页顶部。
+
+### 查单词：双击
+
+在网页、PDF 这类**只读**文字里双击一个英文单词，单词下方会弹出词典气泡：
+
+- **音标和释义**：来自有道词典（免费），查不到时自动使用 Mac 自带的词典（离线）
+- **✦ 此处**：DeepSeek 结合你正在读的这句话，告诉你这个词在这里的具体意思
+
+在输入框里双击选词时不会弹出气泡，不影响你编辑文字。
+
+![双击单词弹出词典气泡](docs/assets/easydict-plus/word-lookup.png)
+
+### 练习写作：`⇧⌥R` 润色
+
+先自己用英文写，写得不地道也没关系。选中后按 `⇧⌥R`，Easydict 内置的免费 AI 会帮你改得更自然。
+
+**学习建议**：别全靠 `⌥R`。先自己写，再用 `⇧⌥R` 看看 AI 改了哪里，这样进步最快。
+
+---
+
+## 费用说明
+
+| 部分 | 费用 |
+| --- | --- |
+| 双击查词的音标和释义 | **免费**（有道网页词典，无需 API Key；系统词典离线免费） |
+| `⇧⌥R` 润色 | **免费**（使用 Easydict 内置 AI，高峰期可能限流） |
+| 翻译、上屏、悬停翻译、"此处"语境义 | 使用你的 DeepSeek 账户，按用量计费 |
+
+翻译一句话通常只消耗几百个 token。按 DeepSeek 官方价格估算，每天翻译两三百次，一个月一般也就几块钱人民币以内。实际价格请以 [DeepSeek 官方价格页](https://api-docs.deepseek.com/zh-cn/quick_start/pricing) 为准。
+
+---
+
+## 常见问题
+
+**按快捷键没有反应？**
+
+1. 确认菜单栏里有 Easydict 图标（没有说明 App 没在运行）。
+2. 确认已经打开辅助功能权限。如果你重新编译过 App，macOS 可能把它当成新 App，需要到辅助功能里关掉再重新打开一次。
+
+**卡片显示"已复制，按 ⌘V 粘贴"？**
+
+翻译期间你切换到了别的 App，或者当前 App 不允许直接写入文字。译文已经在剪贴板里，按 `⌘V` 粘贴即可。
+
+**按住 `⌃` 没有反应？**
+
+- 需要单独按住 `⌃` 约 0.3 秒，中途按了别的键会自动取消（这样 `⌃⌘空格` 之类的快捷键不会误触发）
+- 少数 App 不对外提供文字内容，在那里指着不会有反应，这时可以选中文字后按 `⌥D` 翻译
+- 中文段落本来就不会弹出卡片
+
+**双击单词没有弹出气泡？**
+
+只在只读文字里生效，在输入框里双击会保持原版的查询图标。也请确认 **设置 → 高级 → 阅读辅助 → 双击查词** 已打开。
+
+**会不会被官方版本自动更新覆盖？**
+
+本版本默认关闭了自动检查更新。如果你手动点击"检查更新"并安装，会被官方原版覆盖，增强功能就没了。
+
+**想关掉某个功能？**
+
+都在 **设置 → 高级** 里：替换翻译的悬浮预览、双击查词、悬停翻译的触发键都可以单独关闭。
+
+---
+
+## 给开发者
+
+- **新增代码**：
+  - `Easydict/Swift/Feature/ReadingAssist/`：悬停翻译和双击查词
+  - `Easydict/Swift/Feature/ActionManager/`：翻译并替换、翻译卡片、上屏
+- **每次改动的记录**：`docs/histories/2026-10/`
+- **编码规范与 Agent 开发说明**：沿用原项目的 [`AGENTS.md`](AGENTS.md) 和 [`CONTRIBUTING.md`](CONTRIBUTING.md)
+- **同步原作者的更新**：
+
+  ```bash
+  git remote add upstream https://github.com/tisfeng/Easydict.git
+  git fetch upstream
+  git merge upstream/dev
+  ```
+
+---
+
+## 致谢与开源协议
+
+本项目基于 [tisfeng/Easydict](https://github.com/tisfeng/Easydict) 二次开发，感谢原作者和所有贡献者。原版说明请见 [README_ZH.md](README_ZH.md)（中文）和 [README_UPSTREAM.md](README_UPSTREAM.md)（English）。
+
+与原项目一致，本项目以 [GPL-3.0](LICENSE) 协议开源。
