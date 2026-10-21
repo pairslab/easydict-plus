@@ -210,6 +210,10 @@ public class StreamService: QueryService {
 
     var hideThinkTagContent: Bool = true
 
+    /// Messages that replace the built-in and user-configured prompts for the next requests,
+    /// for one-off questions such as a word's meaning in context. Use a dedicated instance.
+    var customChatMessages: [ChatMessage]?
+
     /// The optional OpenAI-compatible reasoning mode for stream services.
     /// Subclasses can override this when the selected provider supports the parameter.
     @nonobjc
@@ -506,6 +510,9 @@ public class StreamService: QueryService {
     /// Base on chat query, convert prompt dict to LLM service prompt model.
     /// If enableCustomPrompt is true, we will use custom prompt, otherwise use system prompt.
     func chatMessageDicts(_ chatQuery: ChatQueryParam) -> [ChatMessage] {
+        if let customChatMessages {
+            return customChatMessages
+        }
         if enableCustomPrompt {
             var chatMessages: [ChatMessage] = []
             let systemPrompt = replaceCustomPromptWithVariable(systemPrompt)

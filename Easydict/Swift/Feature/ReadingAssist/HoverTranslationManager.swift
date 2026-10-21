@@ -235,7 +235,7 @@ final class HoverTranslationManager: NSObject {
 
         let screen = NSScreen.screens.first { $0.frame.contains(location) } ?? NSScreen.main
         let locator = ParagraphLocator(
-            primaryScreenMaxY: NSScreen.screens.first?.frame.maxY ?? 0,
+            coordinateSpace: AXCoordinateSpace(primaryScreenMaxY: NSScreen.screens.first?.frame.maxY ?? 0),
             maximumHeight: (screen?.frame.height ?? 0) * Self.maximumParagraphHeightRatio
         )
         locatorQueue.async { [weak self] in

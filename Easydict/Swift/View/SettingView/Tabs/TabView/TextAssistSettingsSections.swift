@@ -59,14 +59,22 @@ struct TextReplacementSettingsSection: View {
     @Default(.showTextReplacementPreview) private var showTextReplacementPreview
 }
 
-// MARK: - HoverTranslationSettingsSection
+// MARK: - ReadingAssistSettingsSection
 
-/// Advanced settings for translating the paragraph under the mouse.
-struct HoverTranslationSettingsSection: View {
+/// Advanced settings for reading foreign text: word lookup and paragraph hover translation.
+struct ReadingAssistSettingsSection: View {
     // MARK: Internal
 
     var body: some View {
         Section {
+            Toggle(isOn: $enableWordLookup) {
+                AdvancedTabItemView(
+                    color: .mint,
+                    icon: .characterBookClosed,
+                    labelText: "setting.advance.word_lookup.enable",
+                    subtitleText: "setting.advance.word_lookup.enable_desc"
+                )
+            }
             Picker(
                 selection: $hoverTranslationTrigger,
                 label: AdvancedTabItemView(
@@ -82,11 +90,12 @@ struct HoverTranslationSettingsSection: View {
                 }
             }
         } header: {
-            Text("setting.advance.header.hover_translation")
+            Text("setting.advance.header.reading_assist")
         }
     }
 
     // MARK: Private
 
+    @Default(.enableWordLookup) private var enableWordLookup
     @Default(.hoverTranslationTrigger) private var hoverTranslationTrigger
 }

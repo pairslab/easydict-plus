@@ -28,32 +28,19 @@ struct HoveredParagraph: Equatable, Sendable {
 /// line breaks around the character under the point; other elements contribute their own text.
 /// Every lookup waits on the target app, so run it off the main thread.
 struct ParagraphLocator: Sendable {
-    // MARK: Lifecycle
-
-    /// - Parameters:
-    ///   - primaryScreenMaxY: Top edge of the primary screen, used to flip between Cocoa and
-    ///     Accessibility coordinates. Read it on the main thread.
-    ///   - maximumHeight: Tallest frame accepted as a paragraph, so a whole page is never taken.
-    init(primaryScreenMaxY: CGFloat, maximumHeight: CGFloat) {
-        self.primaryScreenMaxY = primaryScreenMaxY
-        self.maximumHeight = maximumHeight
-    }
-
     // MARK: Internal
+
+    let coordinateSpace: AXCoordinateSpace
+    /// Tallest frame accepted as a paragraph, so a whole page is never taken.
+    let maximumHeight: CGFloat
 
     /// The paragraph under `cocoaPoint`, or nil when there is no readable text there.
     func paragraph(at cocoaPoint: CGPoint) -> HoveredParagraph? {
-        let point = CGPoint(x: cocoaPoint.x, y: primaryScreenMaxY - cocoaPoint.y)
-        var hitElement: AXUIElement?
-        guard AXUIElementCopyElementAtPosition(Self.systemWide, Float(point.x), Float(point.y), &hitElement)
-            == .success,
-            let element = hitElement
-        else {
+        let point = coordinateSpace.axPoint(fromCocoa: cocoaPoint)
+        guard let element = AXElementReader.element(at: point) else {
             return nil
         }
-
-        var processIdentifier: pid_t = 0
-        AXUIElementGetPid(element, &processIdentifier)
+        let processIdentifier = AXElementReader.processIdentifier(of: element)
         guard processIdentifier != ProcessInfo.processInfo.processIdentifier else {
             return nil
         }
@@ -80,9 +67,8 @@ struct ParagraphLocator: Sendable {
 
     // MARK: Private
 
-    private static let systemWide = AXUIElementCreateSystemWide()
-    private static let maximumAncestorDepth = 8
     private static let maximumTextLength = 4000
+    private static let maximumDepth = 8
     /// Slack around a paragraph frame that still counts as pointing at it.
     private static let hitSlop: CGFloat = 6
     /// Roles whose own title or value is worth translating, such as UI labels in another language.
@@ -91,42 +77,44 @@ struct ParagraphLocator: Sendable {
         kAXRadioButtonRole, kAXPopUpButtonRole, kAXCellRole, "AXHeading", "AXLink",
     ]
 
-    private let primaryScreenMaxY: CGFloat
-    private let maximumHeight: CGFloat
-
-    // MARK: Lookups
-
     /// The paragraph from WebKit or Chromium text markers, asked on the element or its ancestors.
     private func webParagraph(from element: AXUIElement, at point: CGPoint) -> (text: String, axFrame: CGRect)? {
-        var current: AXUIElement? = element
-        for _ in 0 ..< Self.maximumAncestorDepth {
-            guard let node = current else {
-                return nil
-            }
-            if let marker = parameterizedValue(node, "AXTextMarkerForPosition", pointValue(point)),
-               let range = parameterizedValue(node, "AXParagraphTextMarkerRangeForTextMarker", marker),
-               let text = parameterizedValue(node, "AXStringForTextMarkerRange", range) as? String,
-               let bounds = rect(from: parameterizedValue(node, "AXBoundsForTextMarkerRange", range)) {
+        for node in AXElementReader.ancestry(of: element, limit: Self.maximumDepth) {
+            if let marker = AXElementReader.parameterizedAttribute(
+                node,
+                "AXTextMarkerForPosition",
+                AXElementReader.pointValue(point)
+            ),
+                let range = AXElementReader.parameterizedAttribute(
+                    node,
+                    "AXParagraphTextMarkerRangeForTextMarker",
+                    marker
+                ),
+                let text = AXElementReader.parameterizedAttribute(node, "AXStringForTextMarkerRange", range) as? String,
+                let bounds = AXElementReader.rect(
+                    from: AXElementReader.parameterizedAttribute(node, "AXBoundsForTextMarkerRange", range)
+                ) {
                 return (text, bounds)
             }
-            if role(of: node) == "AXWebArea" {
+            if AXElementReader.role(of: node) == "AXWebArea" {
                 return nil
             }
-            current = parent(of: node)
         }
         return nil
     }
 
     /// The joined text of the block that holds a static text run, for engines without paragraph markers.
     private func webBlock(containing element: AXUIElement) -> (text: String, axFrame: CGRect)? {
-        guard role(of: element) == kAXStaticTextRole, var block = parent(of: element) else {
+        guard AXElementReader.role(of: element) == kAXStaticTextRole,
+              var block = AXElementReader.parent(of: element)
+        else {
             return nil
         }
         // Climb out of inline wrappers such as links to reach the paragraph-level element.
-        while role(of: block) == "AXLink", let next = parent(of: block) {
+        while AXElementReader.role(of: block) == "AXLink", let next = AXElementReader.parent(of: block) {
             block = next
         }
-        guard role(of: block) != "AXWebArea", let frame = rect(from: attributeValue(block, "AXFrame")) else {
+        guard AXElementReader.role(of: block) != "AXWebArea", let frame = AXElementReader.frame(of: block) else {
             return nil
         }
         let text = staticTexts(in: block).joined()
@@ -135,16 +123,15 @@ struct ParagraphLocator: Sendable {
 
     /// The paragraph around the character under the point in a native text view.
     private func nativeParagraph(in element: AXUIElement, at point: CGPoint) -> (text: String, axFrame: CGRect)? {
-        guard let indexValue = parameterizedValue(element, "AXRangeForPosition", pointValue(point)),
-              let fullText = attributeValue(element, kAXValueAttribute) as? String,
-              !fullText.isEmpty
-        else {
-            return nil
-        }
-
-        var characterRange = CFRange()
-        guard CFGetTypeID(indexValue) == AXValueGetTypeID(),
-              AXValueGetValue(indexValue as! AXValue, .cfRange, &characterRange)
+        guard let characterRange = AXElementReader.range(
+            from: AXElementReader.parameterizedAttribute(
+                element,
+                "AXRangeForPosition",
+                AXElementReader.pointValue(point)
+            )
+        ),
+            let fullText = AXElementReader.string(element, kAXValueAttribute),
+            !fullText.isEmpty
         else {
             return nil
         }
@@ -153,7 +140,9 @@ struct ParagraphLocator: Sendable {
         let location = min(max(characterRange.location, 0), nsText.length - 1)
         let paragraphRange = nsText.paragraphRange(for: NSRange(location: location, length: 0))
         let range = CFRange(location: paragraphRange.location, length: paragraphRange.length)
-        guard let bounds = rect(from: parameterizedValue(element, "AXBoundsForRange", rangeValue(range))) else {
+        guard let bounds = AXElementReader.rect(
+            from: AXElementReader.parameterizedAttribute(element, "AXBoundsForRange", AXElementReader.rangeValue(range))
+        ) else {
             return nil
         }
         return (nsText.substring(with: paragraphRange), bounds)
@@ -161,14 +150,14 @@ struct ParagraphLocator: Sendable {
 
     /// The element's own text, such as a label, heading, or button title.
     private func ownText(of element: AXUIElement) -> (text: String, axFrame: CGRect)? {
-        guard let role = role(of: element), Self.labelRoles.contains(role),
-              let frame = rect(from: attributeValue(element, "AXFrame"))
+        guard let role = AXElementReader.role(of: element), Self.labelRoles.contains(role),
+              let frame = AXElementReader.frame(of: element)
         else {
             return nil
         }
         let text = [kAXValueAttribute, kAXTitleAttribute, kAXDescriptionAttribute]
             .lazy
-            .compactMap { attributeValue(element, $0) as? String }
+            .compactMap { AXElementReader.string(element, $0) }
             .first { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
         return text.map { ($0, frame) }
     }
@@ -188,73 +177,20 @@ struct ParagraphLocator: Sendable {
         else {
             return nil
         }
-
-        let cocoaFrame = CGRect(
-            x: axFrame.minX,
-            y: primaryScreenMaxY - axFrame.maxY,
-            width: axFrame.width,
-            height: axFrame.height
-        )
         return HoveredParagraph(
             text: String(trimmed.prefix(Self.maximumTextLength)),
-            frame: cocoaFrame,
+            frame: coordinateSpace.cocoaRect(fromAX: axFrame),
             processIdentifier: processIdentifier
         )
     }
 
-    // MARK: Accessibility helpers
-
     private func staticTexts(in element: AXUIElement, depth: Int = 0) -> [String] {
-        guard depth < Self.maximumAncestorDepth else {
+        guard depth < Self.maximumDepth else {
             return []
         }
-        if role(of: element) == kAXStaticTextRole {
-            return (attributeValue(element, kAXValueAttribute) as? String).map { [$0] } ?? []
+        if AXElementReader.role(of: element) == kAXStaticTextRole {
+            return AXElementReader.string(element, kAXValueAttribute).map { [$0] } ?? []
         }
-        let children = attributeValue(element, kAXChildrenAttribute) as? [AXUIElement] ?? []
-        return children.flatMap { staticTexts(in: $0, depth: depth + 1) }
-    }
-
-    private func role(of element: AXUIElement) -> String? {
-        attributeValue(element, kAXRoleAttribute) as? String
-    }
-
-    private func parent(of element: AXUIElement) -> AXUIElement? {
-        guard let value = attributeValue(element, kAXParentAttribute),
-              CFGetTypeID(value) == AXUIElementGetTypeID()
-        else {
-            return nil
-        }
-        return (value as! AXUIElement)
-    }
-
-    private func attributeValue(_ element: AXUIElement, _ attribute: String) -> CFTypeRef? {
-        var value: CFTypeRef?
-        let error = AXUIElementCopyAttributeValue(element, attribute as CFString, &value)
-        return error == .success ? value : nil
-    }
-
-    private func parameterizedValue(_ element: AXUIElement, _ attribute: String, _ parameter: CFTypeRef) -> CFTypeRef? {
-        var value: CFTypeRef?
-        let error = AXUIElementCopyParameterizedAttributeValue(element, attribute as CFString, parameter, &value)
-        return error == .success ? value : nil
-    }
-
-    private func rect(from value: CFTypeRef?) -> CGRect? {
-        guard let value, CFGetTypeID(value) == AXValueGetTypeID() else {
-            return nil
-        }
-        var rect = CGRect.zero
-        return AXValueGetValue(value as! AXValue, .cgRect, &rect) ? rect : nil
-    }
-
-    private func pointValue(_ point: CGPoint) -> AXValue {
-        var point = point
-        return AXValueCreate(.cgPoint, &point)!
-    }
-
-    private func rangeValue(_ range: CFRange) -> AXValue {
-        var range = range
-        return AXValueCreate(.cfRange, &range)!
+        return AXElementReader.children(of: element).flatMap { staticTexts(in: $0, depth: depth + 1) }
     }
 }

@@ -531,6 +531,19 @@ extension EventMonitor {
     private func handleSelectedText(_ text: String?) {
         let trimmed = (text ?? "").removeInvisibleChar().trim()
         guard !trimmed.isEmpty else { return }
+
+        // A double-clicked foreign word in read-only text opens the dictionary card instead of the icon.
+        if actionType == .autoSelectQuery, triggerType == .doubleClick, !isSelectedTextEditable,
+           WordLookupManager.accepts(trimmed) {
+            forceDismissPopButton()
+            eventTapMonitor.stop()
+            let mouseLocation = NSEvent.mouseLocation
+            Task { @MainActor in
+                WordLookupManager.shared.lookUp(trimmed, near: mouseLocation)
+            }
+            return
+        }
+
         let shouldShow = (actionType == .autoSelectQuery) && shouldShowAutoQueryIcon(for: trimmed)
         let updateUI = { [weak self] in
             guard let self else { return }

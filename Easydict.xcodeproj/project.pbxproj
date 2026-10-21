@@ -215,6 +215,13 @@
 		0370A0B12FBA0001000A0B12 /* AnkiConnectClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0370A0B02FBA0001000A0B12 /* AnkiConnectClient.swift */; };
 		03715A282E6D24F60067259C /* SystemUtility.swift in Sources */ = {isa = PBXBuildFile; fileRef = 03BBC8152E62062100CFC582 /* SystemUtility.swift */; };
 		03715A292E6D25170067259C /* ActionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 03A00D872E616D56001A4D82 /* ActionManager.swift */; };
+		749143681EFF99CAAF196875 /* NSPanel+FloatingOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = 80D3E6BF894C7EF5288962C7 /* NSPanel+FloatingOverlay.swift */; };
+		5BEBBAFB9C9F2076E819C3C9 /* WordLookupManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 24A579BA5AB06214D6B76257 /* WordLookupManager.swift */; };
+		89ED3B1A18CC825C7AF3E777 /* WordLookupPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 88192B289B19749137FB406D /* WordLookupPanel.swift */; };
+		AAA7F7BCA42AEE4B183BCCDB /* WordLookupCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D3F2F5A8AF8D382D6B016EB5 /* WordLookupCardView.swift */; };
+		952DDAEABE26094B5D6D4BB7 /* WordLookupLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8910AF270FF7476405EBC5A4 /* WordLookupLoader.swift */; };
+		A8559FD99EF64F3A5384E285 /* WordLocator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 197954E7D2923BE1C43522A3 /* WordLocator.swift */; };
+		C43F7BBC40B72387579DAE97 /* AXElementReader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2CAAAE7B6526C515C3EDFCDD /* AXElementReader.swift */; };
 		BB44A1F36C42DD8D93864E5D /* ParagraphHighlightPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0DE4221946B16E63A168A994 /* ParagraphHighlightPanel.swift */; };
 		565EE1392ED1EEBFD5AD324B /* ParagraphLocator.swift in Sources */ = {isa = PBXBuildFile; fileRef = CEE740535A93B5EE534EA63B /* ParagraphLocator.swift */; };
 		0EED75EA636B71C00CD1E231 /* HoverTranslationTrigger.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6EB820D37D6F57243CFB23F4 /* HoverTranslationTrigger.swift */; };
@@ -1008,6 +1015,13 @@
 		039D119729D5E26300C93F46 /* EZAudioUtils.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = EZAudioUtils.h; sourceTree = "<group>"; };
 		039D119829D5E26300C93F46 /* EZAudioUtils.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = EZAudioUtils.m; sourceTree = "<group>"; };
 		03A00D872E616D56001A4D82 /* ActionManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActionManager.swift; sourceTree = "<group>"; };
+		80D3E6BF894C7EF5288962C7 /* NSPanel+FloatingOverlay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "NSPanel+FloatingOverlay.swift"; sourceTree = "<group>"; };
+		24A579BA5AB06214D6B76257 /* WordLookupManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WordLookupManager.swift; sourceTree = "<group>"; };
+		88192B289B19749137FB406D /* WordLookupPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WordLookupPanel.swift; sourceTree = "<group>"; };
+		D3F2F5A8AF8D382D6B016EB5 /* WordLookupCardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WordLookupCardView.swift; sourceTree = "<group>"; };
+		8910AF270FF7476405EBC5A4 /* WordLookupLoader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WordLookupLoader.swift; sourceTree = "<group>"; };
+		197954E7D2923BE1C43522A3 /* WordLocator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WordLocator.swift; sourceTree = "<group>"; };
+		2CAAAE7B6526C515C3EDFCDD /* AXElementReader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AXElementReader.swift; sourceTree = "<group>"; };
 		0DE4221946B16E63A168A994 /* ParagraphHighlightPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParagraphHighlightPanel.swift; sourceTree = "<group>"; };
 		CEE740535A93B5EE534EA63B /* ParagraphLocator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParagraphLocator.swift; sourceTree = "<group>"; };
 		6EB820D37D6F57243CFB23F4 /* HoverTranslationTrigger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HoverTranslationTrigger.swift; sourceTree = "<group>"; };
@@ -2397,15 +2411,21 @@
 			path = EZAudioUtils;
 			sourceTree = "<group>";
 		};
-		9DED95E203BD087CA8C6735D /* HoverTranslation */ = {
+		9DED95E203BD087CA8C6735D /* ReadingAssist */ = {
 			isa = PBXGroup;
 			children = (
 				BCF3AED5C101633BEA7ACD32 /* HoverTranslationManager.swift */,
+				24A579BA5AB06214D6B76257 /* WordLookupManager.swift */,
+				88192B289B19749137FB406D /* WordLookupPanel.swift */,
+				D3F2F5A8AF8D382D6B016EB5 /* WordLookupCardView.swift */,
+				8910AF270FF7476405EBC5A4 /* WordLookupLoader.swift */,
+				197954E7D2923BE1C43522A3 /* WordLocator.swift */,
+				2CAAAE7B6526C515C3EDFCDD /* AXElementReader.swift */,
 				6EB820D37D6F57243CFB23F4 /* HoverTranslationTrigger.swift */,
 				CEE740535A93B5EE534EA63B /* ParagraphLocator.swift */,
 				0DE4221946B16E63A168A994 /* ParagraphHighlightPanel.swift */,
 			);
-			path = HoverTranslation;
+			path = ReadingAssist;
 			sourceTree = "<group>";
 		};
 		03A00D862E616D3D001A4D82 /* ActionManager */ = {
@@ -3160,6 +3180,7 @@
 			isa = PBXGroup;
 			children = (
 				03E759F72ED75F4F00E1741E /* NSWindow+ObjCCompat.swift */,
+				80D3E6BF894C7EF5288962C7 /* NSPanel+FloatingOverlay.swift */,
 			);
 			path = NSWindow;
 			sourceTree = "<group>";
@@ -3623,7 +3644,7 @@
 			children = (
 				0328D0792D7D42520050B2C7 /* Screenshot */,
 				03A00D862E616D3D001A4D82 /* ActionManager */,
-				9DED95E203BD087CA8C6735D /* HoverTranslation */,
+				9DED95E203BD087CA8C6735D /* ReadingAssist */,
 				0370A0B22FBA0001000A0B12 /* AnkiConnect */,
 				032AAA502C456D96007996A1 /* HTTPServer */,
 				A1B2C3D4E5F6000000000005 /* VocabularyNotebook */,
@@ -4875,6 +4896,13 @@
 				031760F42E07FB2800CE8FD7 /* AppleLanguageDetector.swift in Sources */,
 				EAE3D3502B62E9DE001EE3E3 /* GlobalContext.swift in Sources */,
 				03715A292E6D25170067259C /* ActionManager.swift in Sources */,
+				749143681EFF99CAAF196875 /* NSPanel+FloatingOverlay.swift in Sources */,
+				5BEBBAFB9C9F2076E819C3C9 /* WordLookupManager.swift in Sources */,
+				89ED3B1A18CC825C7AF3E777 /* WordLookupPanel.swift in Sources */,
+				AAA7F7BCA42AEE4B183BCCDB /* WordLookupCardView.swift in Sources */,
+				952DDAEABE26094B5D6D4BB7 /* WordLookupLoader.swift in Sources */,
+				A8559FD99EF64F3A5384E285 /* WordLocator.swift in Sources */,
+				C43F7BBC40B72387579DAE97 /* AXElementReader.swift in Sources */,
 				BB44A1F36C42DD8D93864E5D /* ParagraphHighlightPanel.swift in Sources */,
 				565EE1392ED1EEBFD5AD324B /* ParagraphLocator.swift in Sources */,
 				0EED75EA636B71C00CD1E231 /* HoverTranslationTrigger.swift in Sources */,

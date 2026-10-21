@@ -110,26 +110,7 @@ final class TranslationPreviewPanel {
         return controller
     }()
 
-    private lazy var panel: NSPanel = {
-        let panel = NSPanel(
-            contentRect: .zero,
-            styleMask: [.borderless, .nonactivatingPanel],
-            backing: .buffered,
-            defer: true
-        )
-        panel.isFloatingPanel = true
-        panel.level = .statusBar
-        panel.backgroundColor = .clear
-        panel.isOpaque = false
-        panel.hasShadow = false
-        panel.ignoresMouseEvents = true
-        panel.hidesOnDeactivate = false
-        panel.isReleasedWhenClosed = false
-        panel.animationBehavior = .none
-        panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary, .ignoresCycle]
-        panel.contentView = hostingController.view
-        return panel
-    }()
+    private lazy var panel = NSPanel.floatingOverlay(level: .statusBar, contentView: hostingController.view)
 
     private func updateFrame() {
         let size = hostingController.sizeThatFits(in: Self.maximumMeasureSize)

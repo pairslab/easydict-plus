@@ -77,29 +77,11 @@ final class ParagraphHighlightPanel {
     private var isHiding = false
 
     private lazy var panel: NSPanel = {
-        let panel = NSPanel(
-            contentRect: .zero,
-            styleMask: [.borderless, .nonactivatingPanel],
-            backing: .buffered,
-            defer: true
-        )
-        panel.isFloatingPanel = true
-        panel.level = .floating
-        panel.backgroundColor = .clear
-        panel.isOpaque = false
-        panel.hasShadow = false
-        panel.ignoresMouseEvents = true
-        panel.hidesOnDeactivate = false
-        panel.isReleasedWhenClosed = false
-        panel.animationBehavior = .none
-        panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary, .ignoresCycle]
-
         let hostingView = NSHostingView(rootView: ParagraphHighlightView())
         // The outline follows the panel frame instead of resizing the panel itself.
         hostingView.sizingOptions = []
         hostingView.autoresizingMask = [.width, .height]
-        panel.contentView = hostingView
-        return panel
+        return NSPanel.floatingOverlay(level: .floating, contentView: hostingView)
     }()
 }
 

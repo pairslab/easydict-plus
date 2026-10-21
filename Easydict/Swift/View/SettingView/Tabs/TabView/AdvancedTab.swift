@@ -148,7 +148,7 @@ struct AdvancedTab: View {
             }
 
             TextReplacementSettingsSection()
-            HoverTranslationSettingsSection()
+            ReadingAssistSettingsSection()
 
             // Force get selected text and replace text
             Section {
