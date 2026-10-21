@@ -226,6 +226,12 @@ extension Defaults.Keys {
         default: ""
     )
 
+    /// Modifier held alone to translate the paragraph under the mouse.
+    static let hoverTranslationTrigger = Key<HoverTranslationTrigger>(
+        "EZConfiguration_kHoverTranslationTrigger",
+        default: .control
+    )
+
     /// Whether a floating preview is shown near the caret while replacing text.
     static let showTextReplacementPreview = Key<Bool>(
         "EZConfiguration_kShowTextReplacementPreview",

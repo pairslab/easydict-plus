@@ -20,6 +20,7 @@
     MMLogInfo(@"程序启动");
 
     [ShortcutManager.shared setupShortcut];
+    [EZHoverTranslationManager.shared start];
 
     [EZWindowManager.shared showMainWindowIfNeeded];
     

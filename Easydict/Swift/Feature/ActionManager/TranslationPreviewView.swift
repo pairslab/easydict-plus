@@ -1,5 +1,5 @@
 //
-//  TextReplacementPreviewView.swift
+//  TranslationPreviewView.swift
 //  Easydict
 //
 //  Created by chenyinuo on 2026/10/21.
@@ -9,17 +9,19 @@
 import SFSafeSymbols
 import SwiftUI
 
-// MARK: - TextReplacementPreviewModel
+// MARK: - TranslationPreviewModel
 
-/// Observable state of the floating preview shown while text is translated or polished in place.
+/// Observable state of the floating glass card that streams a translation next to its source,
+/// shared by text replacement and hover translation.
 @MainActor
-final class TextReplacementPreviewModel: ObservableObject {
+final class TranslationPreviewModel: ObservableObject {
     // MARK: Lifecycle
 
-    init(serviceName: String, serviceIconName: String, activity: Activity) {
+    init(serviceName: String, serviceIconName: String, activity: Activity, layout: Layout = .compact) {
         self.serviceName = serviceName
         self.serviceIconName = serviceIconName
         self.activity = activity
+        self.layout = layout
     }
 
     // MARK: Internal
@@ -39,37 +41,57 @@ final class TextReplacementPreviewModel: ObservableObject {
 
     enum Phase: Equatable {
         case processing
+        /// The text is complete and needs no status badge, as when reading a hover translation.
+        case finished
         case completed(Outcome)
         case failed(String)
+    }
+
+    /// Card metrics, so the same card fits both a caret-side status and paragraph reading.
+    struct Layout {
+        /// A narrow card beside the caret that shows the latest lines while streaming.
+        static let compact = Layout(width: 340, maxLines: 8, fontSize: 14)
+
+        let width: CGFloat
+        let maxLines: Int?
+        let fontSize: CGFloat
+
+        /// A card matching the width of the paragraph being read, within comfortable bounds.
+        static func reading(width: CGFloat) -> Layout {
+            Layout(width: min(max(width, 320), 620), maxLines: 24, fontSize: 15)
+        }
     }
 
     let serviceName: String
     let serviceIconName: String
     let activity: Activity
+    let layout: Layout
 
     @Published var text = ""
     @Published var phase = Phase.processing
 }
 
-// MARK: - TextReplacementPreviewView
+// MARK: - TranslationPreviewView
 
-/// A compact glass card that streams the processed text next to the caret.
-struct TextReplacementPreviewView: View {
+/// A glass card that streams the processed text next to its source.
+struct TranslationPreviewView: View {
     // MARK: Internal
 
     /// Transparent margin around the card so its shadow is not clipped by the panel.
     static let shadowInset: CGFloat = 18
+    /// Horizontal padding between the card edge and its text.
+    static let contentInset: CGFloat = 14
 
-    @ObservedObject var model: TextReplacementPreviewModel
+    @ObservedObject var model: TranslationPreviewModel
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             header
             content
         }
-        .padding(.horizontal, 14)
+        .padding(.horizontal, Self.contentInset)
         .padding(.vertical, 12)
-        .frame(width: Self.cardWidth, alignment: .leading)
+        .frame(width: model.layout.width, alignment: .leading)
         .background(.regularMaterial, in: cardShape)
         .overlay {
             cardShape.strokeBorder(.primary.opacity(0.1), lineWidth: 0.5)
@@ -81,8 +103,6 @@ struct TextReplacementPreviewView: View {
     }
 
     // MARK: Private
-
-    private static let cardWidth: CGFloat = 340
 
     private var cardShape: RoundedRectangle {
         RoundedRectangle(cornerRadius: 14, style: .continuous)
@@ -130,6 +150,9 @@ struct TextReplacementPreviewView: View {
             .font(.system(size: 11))
             .foregroundStyle(.tertiary)
 
+        case .finished:
+            EmptyView()
+
         case let .completed(outcome):
             Label(outcomeTitle(outcome), systemSymbol: outcomeSymbol(outcome))
                 .font(.system(size: 11, weight: .semibold))
@@ -156,16 +179,17 @@ struct TextReplacementPreviewView: View {
             PlaceholderLines()
         } else {
             Text(model.text)
-                .font(.system(size: 14))
+                .font(.system(size: model.layout.fontSize))
                 .foregroundStyle(.primary)
-                .lineSpacing(2)
-                .lineLimit(8)
-                .truncationMode(.head)
+                .lineSpacing(model.layout.fontSize * 0.25)
+                .lineLimit(model.layout.maxLines)
+                // While streaming, keep the newest words visible; once done, read from the start.
+                .truncationMode(model.phase == .processing ? .head : .tail)
                 .fixedSize(horizontal: false, vertical: true)
         }
     }
 
-    private func outcomeTitle(_ outcome: TextReplacementPreviewModel.Outcome) -> LocalizedStringKey {
+    private func outcomeTitle(_ outcome: TranslationPreviewModel.Outcome) -> LocalizedStringKey {
         switch outcome {
         case .replaced:
             "action.text_replacement.preview.replaced"
@@ -176,7 +200,7 @@ struct TextReplacementPreviewView: View {
         }
     }
 
-    private func outcomeSymbol(_ outcome: TextReplacementPreviewModel.Outcome) -> SFSymbol {
+    private func outcomeSymbol(_ outcome: TranslationPreviewModel.Outcome) -> SFSymbol {
         switch outcome {
         case .inserted, .replaced:
             .checkmarkCircleFill

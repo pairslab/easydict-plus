@@ -101,6 +101,38 @@ class ActionManager: NSObject {
         )
     }
 
+    /// Detect `text` for reading translation.
+    ///
+    /// - Returns: The detected query, or nil when the text is already in the user's first language
+    ///   and so needs no translation.
+    func readingQuery(for text: String) async throws -> QueryModel? {
+        let queryModel = try await detectedQuery(for: text)
+        return queryModel.detectedLanguage == Defaults[.firstLanguage] ? nil : queryModel
+    }
+
+    /// Translate a query detected by `readingQuery(for:)`, streaming the accumulated result.
+    @MainActor
+    func translateForReading(
+        _ queryModel: QueryModel,
+        service: QueryService,
+        onUpdate: @MainActor (String) -> ()
+    ) async throws
+        -> String {
+        try await processText(queryModel: queryModel, type: .translate, service: service, onUpdate: onUpdate)
+    }
+
+    /// A short, readable reason for a failed request, preferring the service's own message.
+    func failureMessage(for error: Error) -> String {
+        guard let queryError = error as? QueryError else {
+            return error.localizedDescription
+        }
+
+        let details = [queryError.message, queryError.errorDataMessage]
+            .compactMap { $0?.trim() }
+            .filter { !$0.isEmpty }
+        return details.isEmpty ? queryError.type.localizedDescription : details.joined(separator: "\n")
+    }
+
     // MARK: Private
 
     /// Type of text processing action
@@ -177,7 +209,7 @@ class ActionManager: NSObject {
         type: ProcessingType,
         service: QueryService,
         target: InsertionTarget,
-        outcome: TextReplacementPreviewModel.Outcome
+        outcome: TranslationPreviewModel.Outcome
     ) async {
         let preview = presentPreviewIfEnabled(for: service, type: type)
 
@@ -206,7 +238,7 @@ class ActionManager: NSObject {
             }
         } catch is CancellationError {
             logInfo("Text processing cancelled")
-            TextReplacementPreviewPanel.shared.dismiss()
+            TranslationPreviewPanel.shared.dismiss()
         } catch {
             logError("Text processing failed: \(error)")
             finishPreview(preview, phase: .failed(failureMessage(for: error)), after: PreviewDuration.failure)
@@ -227,10 +259,41 @@ class ActionManager: NSObject {
         onUpdate: @MainActor (String) -> ()
     ) async throws
         -> String {
-        let queryModel = try await DetectManager().detectText(queryText)
+        let queryModel = try await detectedQuery(for: queryText)
+        return try await processText(queryModel: queryModel, type: type, service: service, onUpdate: onUpdate)
+    }
+
+    /// Detect the language of `text` and return a query that carries the text itself.
+    ///
+    /// `DetectManager` only fills in languages, so the text is assigned afterwards; without it,
+    /// services would receive an empty query.
+    private func detectedQuery(for text: String) async throws -> QueryModel {
+        let queryModel = try await DetectManager().detectText(text)
+        queryModel.inputText = text
+        return queryModel
+    }
+
+    /// Process the text of an already detected `queryModel`.
+    @MainActor
+    private func processText(
+        queryModel: QueryModel,
+        type: ProcessingType,
+        service: QueryService,
+        onUpdate: @MainActor (String) -> ()
+    ) async throws
+        -> String {
+        // Send the user's exact text; `queryText` is normalized for lookups and may drop characters.
+        let queryText = queryModel.inputText
+        guard !queryText.trim().isEmpty else {
+            // Never ask a model about empty text: its reply would be written back as a "translation".
+            throw QueryError(type: .parameter, message: "Text to process is empty")
+        }
         let sourceLanguage = queryModel.detectedLanguage
         let targetLanguage = queryModel.queryTargetLanguage
-        logInfo("\(type) with \(service.serviceTypeWithUniqueIdentifier()): \(sourceLanguage) -> \(targetLanguage)")
+        logInfo(
+            "\(type) \(queryText.count) characters with \(service.serviceTypeWithUniqueIdentifier()): "
+                + "\(sourceLanguage) -> \(targetLanguage)"
+        )
 
         guard let streamService = service as? StreamService else {
             let result = try await service.startQuery(queryModel)
@@ -380,17 +443,17 @@ class ActionManager: NSObject {
         for service: QueryService,
         type: ProcessingType
     )
-        -> TextReplacementPreviewModel? {
+        -> TranslationPreviewModel? {
         guard Defaults[.showTextReplacementPreview] else {
             return nil
         }
 
-        let model = TextReplacementPreviewModel(
+        let model = TranslationPreviewModel(
             serviceName: service.name(),
             serviceIconName: service.iconName(),
             activity: type == .translate ? .translating : .polishing
         )
-        TextReplacementPreviewPanel.shared.present(
+        TranslationPreviewPanel.shared.present(
             model,
             anchorRect: systemUtility.focusedTextCaretRect()
         )
@@ -399,26 +462,14 @@ class ActionManager: NSObject {
 
     @MainActor
     private func finishPreview(
-        _ preview: TextReplacementPreviewModel?,
-        phase: TextReplacementPreviewModel.Phase,
+        _ preview: TranslationPreviewModel?,
+        phase: TranslationPreviewModel.Phase,
         after duration: TimeInterval
     ) {
         guard let preview else {
             return
         }
         preview.phase = phase
-        TextReplacementPreviewPanel.shared.dismiss(after: duration)
-    }
-
-    /// A short, readable reason for the preview, preferring the service's own message.
-    private func failureMessage(for error: Error) -> String {
-        guard let queryError = error as? QueryError else {
-            return error.localizedDescription
-        }
-
-        let details = [queryError.message, queryError.errorDataMessage]
-            .compactMap { $0?.trim() }
-            .filter { !$0.isEmpty }
-        return details.isEmpty ? queryError.type.localizedDescription : details.joined(separator: "\n")
+        TranslationPreviewPanel.shared.dismiss(after: duration)
     }
 }

@@ -215,10 +215,14 @@
 		0370A0B12FBA0001000A0B12 /* AnkiConnectClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0370A0B02FBA0001000A0B12 /* AnkiConnectClient.swift */; };
 		03715A282E6D24F60067259C /* SystemUtility.swift in Sources */ = {isa = PBXBuildFile; fileRef = 03BBC8152E62062100CFC582 /* SystemUtility.swift */; };
 		03715A292E6D25170067259C /* ActionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 03A00D872E616D56001A4D82 /* ActionManager.swift */; };
+		BB44A1F36C42DD8D93864E5D /* ParagraphHighlightPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0DE4221946B16E63A168A994 /* ParagraphHighlightPanel.swift */; };
+		565EE1392ED1EEBFD5AD324B /* ParagraphLocator.swift in Sources */ = {isa = PBXBuildFile; fileRef = CEE740535A93B5EE534EA63B /* ParagraphLocator.swift */; };
+		0EED75EA636B71C00CD1E231 /* HoverTranslationTrigger.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6EB820D37D6F57243CFB23F4 /* HoverTranslationTrigger.swift */; };
+		2B32ADA23B6AAF713DACBBD3 /* HoverTranslationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = BCF3AED5C101633BEA7ACD32 /* HoverTranslationManager.swift */; };
 		03C945AC2916A2E3940903ED /* SystemUtility+Caret.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6D214E54437EA6F92F494098 /* SystemUtility+Caret.swift */; };
 		E5F1914CF72D29567200C99F /* TextReplacementServiceOption.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE85941526BE6C95434E5D8A /* TextReplacementServiceOption.swift */; };
-		104B0405D7AF42918CFE5A7E /* TextReplacementPreviewPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1BA69072FFA45623E3344EB7 /* TextReplacementPreviewPanel.swift */; };
-		4317BC54438C3004B8210E2A /* TextReplacementPreviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9285DF673FDDFAA52DF5BF27 /* TextReplacementPreviewView.swift */; };
+		104B0405D7AF42918CFE5A7E /* TranslationPreviewPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1BA69072FFA45623E3344EB7 /* TranslationPreviewPanel.swift */; };
+		4317BC54438C3004B8210E2A /* TranslationPreviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9285DF673FDDFAA52DF5BF27 /* TranslationPreviewView.swift */; };
 		03715A2A2E6D253E0067259C /* FocusedElementInfo.swift in Sources */ = {isa = PBXBuildFile; fileRef = 03A91F142E63E1FB00896B17 /* FocusedElementInfo.swift */; };
 		0371A5012DB1291E0097D4A1 /* GitHubService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0371A5002DB1291E0097D4A1 /* GitHubService.swift */; };
 		03779F0E2BB256A7008D3C42 /* OpenAIService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 03779F0B2BB256A7008D3C42 /* OpenAIService.swift */; };
@@ -241,6 +245,7 @@
 		0380484B2C4975BD006C6210 /* Encodable+JSON.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0380484A2C4975BD006C6210 /* Encodable+JSON.swift */; };
 		03825DE22F13B4FB005C1BC6 /* TTSServiceType.swift in Sources */ = {isa = PBXBuildFile; fileRef = 03825DE12F13B4FB005C1BC6 /* TTSServiceType.swift */; };
 		03832F542B5F6BE200D0DC64 /* AdvancedTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = 03832F532B5F6BE200D0DC64 /* AdvancedTab.swift */; };
+		D0BE865CD11F212FE5F53508 /* TextAssistSettingsSections.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE64FE81DE73B53C1264B021 /* TextAssistSettingsSections.swift */; };
 		0A057D802F7000000025C51D /* AdvancedTabAnkiSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A057D7F2F7000000025C51D /* AdvancedTabAnkiSection.swift */; };
 		03882F8D29D95044005B5A52 /* CTView.m in Sources */ = {isa = PBXBuildFile; fileRef = 03882F8429D95044005B5A52 /* CTView.m */; };
 		03882F8E29D95044005B5A52 /* ToastWindowController.m in Sources */ = {isa = PBXBuildFile; fileRef = 03882F8629D95044005B5A52 /* ToastWindowController.m */; };
@@ -946,6 +951,7 @@
 		0380484A2C4975BD006C6210 /* Encodable+JSON.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Encodable+JSON.swift"; sourceTree = "<group>"; };
 		03825DE12F13B4FB005C1BC6 /* TTSServiceType.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TTSServiceType.swift; sourceTree = "<group>"; };
 		03832F532B5F6BE200D0DC64 /* AdvancedTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdvancedTab.swift; sourceTree = "<group>"; };
+		EE64FE81DE73B53C1264B021 /* TextAssistSettingsSections.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TextAssistSettingsSections.swift; sourceTree = "<group>"; };
 		0A057D7F2F7000000025C51D /* AdvancedTabAnkiSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdvancedTabAnkiSection.swift; sourceTree = "<group>"; };
 		03882F8229D95044005B5A52 /* CTScreen.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = CTScreen.h; sourceTree = "<group>"; };
 		03882F8329D95044005B5A52 /* ToastWindowController.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = ToastWindowController.h; sourceTree = "<group>"; };
@@ -1002,10 +1008,14 @@
 		039D119729D5E26300C93F46 /* EZAudioUtils.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = EZAudioUtils.h; sourceTree = "<group>"; };
 		039D119829D5E26300C93F46 /* EZAudioUtils.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = EZAudioUtils.m; sourceTree = "<group>"; };
 		03A00D872E616D56001A4D82 /* ActionManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActionManager.swift; sourceTree = "<group>"; };
+		0DE4221946B16E63A168A994 /* ParagraphHighlightPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParagraphHighlightPanel.swift; sourceTree = "<group>"; };
+		CEE740535A93B5EE534EA63B /* ParagraphLocator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParagraphLocator.swift; sourceTree = "<group>"; };
+		6EB820D37D6F57243CFB23F4 /* HoverTranslationTrigger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HoverTranslationTrigger.swift; sourceTree = "<group>"; };
+		BCF3AED5C101633BEA7ACD32 /* HoverTranslationManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HoverTranslationManager.swift; sourceTree = "<group>"; };
 		6D214E54437EA6F92F494098 /* SystemUtility+Caret.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SystemUtility+Caret.swift"; sourceTree = "<group>"; };
 		DE85941526BE6C95434E5D8A /* TextReplacementServiceOption.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TextReplacementServiceOption.swift; sourceTree = "<group>"; };
-		1BA69072FFA45623E3344EB7 /* TextReplacementPreviewPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TextReplacementPreviewPanel.swift; sourceTree = "<group>"; };
-		9285DF673FDDFAA52DF5BF27 /* TextReplacementPreviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TextReplacementPreviewView.swift; sourceTree = "<group>"; };
+		1BA69072FFA45623E3344EB7 /* TranslationPreviewPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranslationPreviewPanel.swift; sourceTree = "<group>"; };
+		9285DF673FDDFAA52DF5BF27 /* TranslationPreviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranslationPreviewView.swift; sourceTree = "<group>"; };
 		03A1B2C42F70000100A1B2C3 /* MiniMaxService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MiniMaxService.swift; sourceTree = "<group>"; };
 		03A3E1542BEBDB2000E7E210 /* Throttler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Throttler.swift; sourceTree = "<group>"; };
 		03A5B4BE2E0AB23900BA8F2E /* String+OCR.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "String+OCR.swift"; sourceTree = "<group>"; };
@@ -1570,6 +1580,7 @@
 				0A8685C72B552A590022534F /* DisabledAppTab.swift */,
 				96099AE12B5D40330055C4DD /* ShortcutTab.swift */,
 				03832F532B5F6BE200D0DC64 /* AdvancedTab.swift */,
+				EE64FE81DE73B53C1264B021 /* TextAssistSettingsSections.swift */,
 				0A057D7F2F7000000025C51D /* AdvancedTabAnkiSection.swift */,
 				0B6CC260EE5345A88A8DB738 /* SheetChevronRow.swift */,
 				71E61BD21DF447CDB6B01D74 /* AnkiConnectSettingsView.swift */,
@@ -2386,13 +2397,24 @@
 			path = EZAudioUtils;
 			sourceTree = "<group>";
 		};
+		9DED95E203BD087CA8C6735D /* HoverTranslation */ = {
+			isa = PBXGroup;
+			children = (
+				BCF3AED5C101633BEA7ACD32 /* HoverTranslationManager.swift */,
+				6EB820D37D6F57243CFB23F4 /* HoverTranslationTrigger.swift */,
+				CEE740535A93B5EE534EA63B /* ParagraphLocator.swift */,
+				0DE4221946B16E63A168A994 /* ParagraphHighlightPanel.swift */,
+			);
+			path = HoverTranslation;
+			sourceTree = "<group>";
+		};
 		03A00D862E616D3D001A4D82 /* ActionManager */ = {
 			isa = PBXGroup;
 			children = (
 				03A00D872E616D56001A4D82 /* ActionManager.swift */,
 				DE85941526BE6C95434E5D8A /* TextReplacementServiceOption.swift */,
-				1BA69072FFA45623E3344EB7 /* TextReplacementPreviewPanel.swift */,
-				9285DF673FDDFAA52DF5BF27 /* TextReplacementPreviewView.swift */,
+				1BA69072FFA45623E3344EB7 /* TranslationPreviewPanel.swift */,
+				9285DF673FDDFAA52DF5BF27 /* TranslationPreviewView.swift */,
 			);
 			path = ActionManager;
 			sourceTree = "<group>";
@@ -3601,6 +3623,7 @@
 			children = (
 				0328D0792D7D42520050B2C7 /* Screenshot */,
 				03A00D862E616D3D001A4D82 /* ActionManager */,
+				9DED95E203BD087CA8C6735D /* HoverTranslation */,
 				0370A0B22FBA0001000A0B12 /* AnkiConnect */,
 				032AAA502C456D96007996A1 /* HTTPServer */,
 				A1B2C3D4E5F6000000000005 /* VocabularyNotebook */,
@@ -4852,10 +4875,14 @@
 				031760F42E07FB2800CE8FD7 /* AppleLanguageDetector.swift in Sources */,
 				EAE3D3502B62E9DE001EE3E3 /* GlobalContext.swift in Sources */,
 				03715A292E6D25170067259C /* ActionManager.swift in Sources */,
+				BB44A1F36C42DD8D93864E5D /* ParagraphHighlightPanel.swift in Sources */,
+				565EE1392ED1EEBFD5AD324B /* ParagraphLocator.swift in Sources */,
+				0EED75EA636B71C00CD1E231 /* HoverTranslationTrigger.swift in Sources */,
+				2B32ADA23B6AAF713DACBBD3 /* HoverTranslationManager.swift in Sources */,
 				03C945AC2916A2E3940903ED /* SystemUtility+Caret.swift in Sources */,
 				E5F1914CF72D29567200C99F /* TextReplacementServiceOption.swift in Sources */,
-				104B0405D7AF42918CFE5A7E /* TextReplacementPreviewPanel.swift in Sources */,
-				4317BC54438C3004B8210E2A /* TextReplacementPreviewView.swift in Sources */,
+				104B0405D7AF42918CFE5A7E /* TranslationPreviewPanel.swift in Sources */,
+				4317BC54438C3004B8210E2A /* TranslationPreviewView.swift in Sources */,
 				EA9943F02B5354C400EE7B97 /* ShowWindowPositionExtensions.swift in Sources */,
 				96B2F1C52C07782400AD3126 /* GitHubReleaseFetcher.swift in Sources */,
 				CB8C43002C441B74004EC86F /* BaiduApiResponse.swift in Sources */,
@@ -4923,6 +4950,7 @@
 				0370A0B12FBA0001000A0B12 /* AnkiConnectClient.swift in Sources */,
 				036E7D7B293F4FC8002675DF /* EZOpenLinkButton.m in Sources */,
 				03832F542B5F6BE200D0DC64 /* AdvancedTab.swift in Sources */,
+				D0BE865CD11F212FE5F53508 /* TextAssistSettingsSections.swift in Sources */,
 				0A057D802F7000000025C51D /* AdvancedTabAnkiSection.swift in Sources */,
 				CAEB481F1E2B475DBB446F8D /* SheetChevronRow.swift in Sources */,
 				11F98489481B416DA6201252 /* AnkiConnectSettingsView.swift in Sources */,
