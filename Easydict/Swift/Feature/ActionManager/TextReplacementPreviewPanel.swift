@@ -66,7 +66,7 @@ final class TextReplacementPreviewPanel {
     private static let fadeInDuration: TimeInterval = 0.14
     private static let fadeOutDuration: TimeInterval = 0.22
     /// Vertical distance between the caret and the card.
-    private static let anchorGap: CGFloat = 6
+    private static let anchorGap: CGFloat = 10
     /// Unconstrained proposal so the card reports its natural size; its width is fixed in SwiftUI.
     private static let maximumMeasureSize = CGSize(width: 10_000, height: 10_000)
 

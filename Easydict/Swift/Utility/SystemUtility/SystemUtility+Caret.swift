@@ -12,27 +12,32 @@ import AXSwift
 // MARK: - SystemUtility + Caret
 
 extension SystemUtility {
-    /// Screen rect of the caret or selection in the focused element, in Cocoa coordinates.
+    /// Screen rect to anchor floating UI next to the caret, in Cocoa coordinates.
     ///
+    /// Uses the caret or selection bounds, extended vertically to the whole element for compact
+    /// inputs such as chat boxes so anchored UI sits outside them instead of covering their border.
     /// Falls back to the focused element frame, and returns nil when Accessibility exposes neither.
     func focusedTextCaretRect() -> CGRect? {
         guard let element = try? frontmostAppElement?.focusedUIElement() else {
             return nil
         }
 
-        if let range: CFRange = try? element.selectedTextRange(),
-           let rect: CGRect = try? element.parameterizedAttribute(
-               .boundsForRangeParameterized,
-               param: range
-           ),
-           let caretRect = cocoaRect(fromAXRect: rect) {
-            return caretRect
+        let elementFrame = (try? element.attribute(.frame) as CGRect?).flatMap(cocoaRect(fromAXRect:))
+
+        guard let range: CFRange = try? element.selectedTextRange(),
+              let rect: CGRect = try? element.parameterizedAttribute(
+                  .boundsForRangeParameterized,
+                  param: range
+              ),
+              let caretRect = cocoaRect(fromAXRect: rect)
+        else {
+            return elementFrame
         }
 
-        if let frame: CGRect = try? element.attribute(.frame) {
-            return cocoaRect(fromAXRect: frame)
+        if let elementFrame, elementFrame.height <= Self.compactInputMaxHeight {
+            return CGRect(x: caretRect.minX, y: elementFrame.minY, width: caretRect.width, height: elementFrame.height)
         }
-        return nil
+        return caretRect
     }
 
     /// Focused element info for writing text back, without reading the selection.
@@ -51,7 +56,20 @@ extension SystemUtility {
         )
     }
 
+    /// Current value of the focused element, used to confirm that a write took effect.
+    func focusedElementValue() -> String? {
+        try? frontmostAppElement?.focusedUIElement()?.value()
+    }
+
+    /// Selected range of the focused element, or nil when Accessibility cannot read it.
+    func focusedSelectedRange() -> CFRange? {
+        try? frontmostAppElement?.focusedUIElement()?.selectedTextRange()
+    }
+
     // MARK: Private
+
+    /// Inputs up to this height (a few lines) are treated as compact fields such as chat boxes.
+    private static let compactInputMaxHeight: CGFloat = 160
 
     /// Converts a top-left based Accessibility rect into a bottom-left based Cocoa rect.
     ///

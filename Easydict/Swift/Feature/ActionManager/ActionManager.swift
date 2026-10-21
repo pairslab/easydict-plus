@@ -80,10 +80,15 @@ class ActionManager: NSObject {
             return
         }
 
-        let target = insertionTarget(for: systemUtility.focusedElementInfoForInsertion())
+        let target = insertionTarget(for: systemUtility.focusedElementInfoForInsertion(), replacesText: false)
         if let finishedText, !finishedText.isEmpty {
             logInfo("Insert finished translation into previous app")
-            await insert(finishedText, into: target)
+            if !(await writeBack(finishedText, into: target)) {
+                finishedText.copyToPasteboard()
+                let preview = presentPreviewIfEnabled(for: translateService, type: .translate)
+                preview?.text = finishedText
+                finishPreview(preview, phase: .completed(.copied), after: PreviewDuration.copied)
+            }
             return
         }
 
@@ -111,6 +116,8 @@ class ActionManager: NSObject {
         let strategies: [TextStrategy]
         /// Whether insertion writes through Accessibility instead of the pasteboard.
         let isSupportedAX: Bool
+        /// Whether the result replaces the processed text rather than being inserted at the caret.
+        let replacesText: Bool
 
         /// Whether the original app still has focus, so inserting will not land elsewhere.
         var isFrontmost: Bool {
@@ -124,6 +131,9 @@ class ActionManager: NSObject {
         static let copied: TimeInterval = 2.2
         static let failure: TimeInterval = 3.5
     }
+
+    /// Pasting apps read the pasteboard asynchronously, so restore it only after they have.
+    private static let pasteboardRestoreDelay: TimeInterval = 0.25
 
     private let systemUtility = SystemUtility.shared
 
@@ -151,7 +161,7 @@ class ActionManager: NSObject {
             queryText,
             type: type,
             service: service,
-            target: insertionTarget(for: elementInfo),
+            target: insertionTarget(for: elementInfo, replacesText: true),
             outcome: .replaced
         )
     }
@@ -180,11 +190,17 @@ class ActionManager: NSObject {
             }
             preview?.text = processedText
 
+            let didWriteBack: Bool
             if target.isFrontmost {
-                await insert(processedText, into: target)
-                finishPreview(preview, phase: .completed(outcome), after: PreviewDuration.success)
+                didWriteBack = await writeBack(processedText, into: target)
             } else {
                 logInfo("Focus moved to another app, copy processed text instead of inserting")
+                didWriteBack = false
+            }
+
+            if didWriteBack {
+                finishPreview(preview, phase: .completed(outcome), after: PreviewDuration.success)
+            } else {
                 processedText.copyToPasteboard()
                 finishPreview(preview, phase: .completed(.copied), after: PreviewDuration.copied)
             }
@@ -246,7 +262,11 @@ class ActionManager: NSObject {
 
     /// Insertion strategies for the focused element, falling back to pasting when
     /// Accessibility cannot write to it instead of silently doing nothing.
-    private func insertionTarget(for elementInfo: FocusedElementInfo) -> InsertionTarget {
+    private func insertionTarget(
+        for elementInfo: FocusedElementInfo,
+        replacesText: Bool
+    )
+        -> InsertionTarget {
         var strategies = systemUtility.textStrategies(for: elementInfo)
         if strategies.isEmpty {
             strategies = [.shortcut]
@@ -254,8 +274,65 @@ class ActionManager: NSObject {
         return InsertionTarget(
             processIdentifier: NSWorkspace.shared.frontmostApplication?.processIdentifier,
             strategies: strategies,
-            isSupportedAX: elementInfo.isSupportedAXElement
+            isSupportedAX: elementInfo.isSupportedAXElement,
+            replacesText: replacesText
         )
+    }
+
+    /// Write `text` back and confirm that the focused element actually changed.
+    ///
+    /// Electron and other Chromium-based apps often report success for Accessibility selection
+    /// and text writes without applying them. When the value stays the same, the text is
+    /// selected (for replacements) and pasted instead. Other strategies cannot be confirmed
+    /// and are trusted as before.
+    ///
+    /// - Returns: Whether the text is known to have reached the target.
+    @MainActor
+    private func writeBack(_ text: String, into target: InsertionTarget) async -> Bool {
+        guard target.strategies == [.accessibility] else {
+            await insert(text, into: target)
+            return true
+        }
+
+        let originalValue = systemUtility.focusedElementValue()
+        if !target.replacesText || focusedElementHasSelection() {
+            await insert(text, into: target)
+            if await focusedValueChanged(from: originalValue) {
+                return true
+            }
+            logInfo("Accessibility write was ignored by \(frontmostAppBundleID), paste instead")
+        } else {
+            logInfo("Accessibility selection was ignored by \(frontmostAppBundleID), select all and paste")
+        }
+
+        if target.replacesText, !focusedElementHasSelection() {
+            await systemUtility.selectAllByShortcut()
+        }
+        await systemUtility.insertTextByShortcut(text, restoreInterval: Self.pasteboardRestoreDelay)
+        let isPasted = await focusedValueChanged(from: originalValue)
+        logInfo("Pasted text, confirmed in target: \(isPasted)")
+        return isPasted
+    }
+
+    private func focusedElementHasSelection() -> Bool {
+        (systemUtility.focusedSelectedRange()?.length ?? 0) > 0
+    }
+
+    /// Poll the focused element briefly until its value differs from `originalValue`.
+    ///
+    /// - Returns: true once the value changed, or when it cannot be read and so cannot be checked.
+    @MainActor
+    private func focusedValueChanged(from originalValue: String?) async -> Bool {
+        guard let originalValue else {
+            return true
+        }
+        for _ in 0 ..< 10 {
+            if systemUtility.focusedElementValue() != originalValue {
+                return true
+            }
+            await Task.sleep(seconds: 0.05)
+        }
+        return false
     }
 
     /// Insert `text` at the target, restoring the user's pasteboard when pasting was needed.
