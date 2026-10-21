@@ -52,6 +52,9 @@ NS_ASSUME_NONNULL_BEGIN
 /// Returns the translated text of the first service result, if available.
 - (nullable NSString *)firstTranslatedText;
 
+/// Returns the first service's translated text only after it finished without an error.
+- (nullable NSString *)firstFinishedTranslatedText;
+
 - (void)toggleTranslationLanguages;
 
 - (void)focusInputTextView;

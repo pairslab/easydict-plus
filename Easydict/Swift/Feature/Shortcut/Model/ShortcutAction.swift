@@ -36,6 +36,7 @@ public enum ShortcutAction: String, Identifiable, CaseIterable {
     case clearAll
     case copy
     case copyFirstResult
+    case insertTranslation
     case focus
     case play
     case retry
@@ -230,6 +231,12 @@ extension ShortcutAction {
                 icon: .docOnClipboard,
                 defaultsKey: .copyFirstResultShortcut,
                 action: { windowManager.copyFirstTranslatedText() }
+            ),
+            .insertTranslation: .init(
+                titleKey: "shortcut.action.insert_translation",
+                icon: .textInsert,
+                defaultsKey: .insertTranslationShortcut,
+                action: { await ActionManager.shared.insertQueryTranslation() }
             ),
             .focus: .init(
                 titleKey: "shortcut_focus",

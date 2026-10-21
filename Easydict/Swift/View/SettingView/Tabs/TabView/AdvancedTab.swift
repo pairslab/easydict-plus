@@ -147,6 +147,40 @@ struct AdvancedTab: View {
                 Text("setting.advance.mouse_select_query.header")
             }
 
+            // Translate and replace
+            Section {
+                Picker(
+                    selection: $textReplacementServiceTypeID,
+                    label: AdvancedTabItemView(
+                        color: .indigo,
+                        icon: .arrowLeftArrowRightSquare,
+                        labelText: "setting.advance.text_replacement.service",
+                        subtitleText: "setting.advance.text_replacement.service_desc"
+                    )
+                ) {
+                    Text("setting.advance.text_replacement.service.built_in_ai")
+                        .tag("")
+                    Divider()
+                    ForEach(textReplacementServiceOptions) { option in
+                        Text(option.title)
+                            .tag(option.typeID)
+                    }
+                }
+                Toggle(isOn: $showTextReplacementPreview) {
+                    AdvancedTabItemView(
+                        color: .cyan,
+                        icon: .textMagnifyingglass,
+                        labelText: "setting.advance.text_replacement.show_preview",
+                        subtitleText: "setting.advance.text_replacement.show_preview_desc"
+                    )
+                }
+            } header: {
+                Text("setting.advance.header.text_replacement")
+            }
+            .onAppear {
+                textReplacementServiceOptions = TextReplacementServiceOption.availableOptions()
+            }
+
             // Force get selected text and replace text
             Section {
                 Toggle(isOn: $enableForceGetSelectedText) {
@@ -455,6 +489,8 @@ struct AdvancedTab: View {
 
     // MARK: Private
 
+    @State private var textReplacementServiceOptions: [TextReplacementServiceOption] = []
+
     @Default(.enableBetaFeature) private var enableBetaFeature
 
     @Default(.defaultTTSServiceType) private var defaultTTSServiceType
@@ -467,6 +503,8 @@ struct AdvancedTab: View {
     @Default(.isScreenshotTipLayerHidden) private var isScreenshotTipLayerHidden
     @Default(.autoSelectAllTextFieldText) private var autoSelectAllTextFieldText
     @Default(.preferAppleScriptAPI) private var preferAppleScriptAPI
+    @Default(.textReplacementServiceTypeID) private var textReplacementServiceTypeID
+    @Default(.showTextReplacementPreview) private var showTextReplacementPreview
 
     // Force get selected text
     @Default(.enableForceGetSelectedText) private var enableForceGetSelectedText

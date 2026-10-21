@@ -219,6 +219,19 @@ extension Defaults.Keys {
         default: true
     )
 
+    /// Service type ID used by translate-and-replace and insert-translation.
+    /// An empty value means the built-in AI service.
+    static let textReplacementServiceTypeID = Key<String>(
+        "EZConfiguration_kTextReplacementServiceTypeID",
+        default: ""
+    )
+
+    /// Whether a floating preview is shown near the caret while replacing text.
+    static let showTextReplacementPreview = Key<Bool>(
+        "EZConfiguration_kShowTextReplacementPreview",
+        default: true
+    )
+
     static let preferAppleScriptAPI = Key<Bool>(
         "EZConfiguration_kPreferAppleScriptAPI",
         default: true
@@ -438,6 +451,9 @@ extension Defaults.Keys {
     static let clearAllShortcut = Key<KeyCombo?>("EZClearAllShortcutKey_keyHolder")
     static let copyShortcut = Key<KeyCombo?>("EZCopyShortcutKey_keyHolder")
     static let copyFirstResultShortcut = Key<KeyCombo?>("EZCopyFirstResultShortcutKey_keyHolder")
+    static let insertTranslationShortcut = Key<KeyCombo?>(
+        "EZInsertTranslationShortcutKey_keyHolder"
+    )
     static let focusShortcut = Key<KeyCombo?>("EZFocusShortcutKey_keyHolder")
     static let playShortcut = Key<KeyCombo?>("EZPlayShortcutKey_keyHolder")
     static let retryShortcut = Key<KeyCombo?>("EZRetryShortcutKey_keyHolder")

@@ -28,6 +28,7 @@ extension EasydictMainMenu {
             MainMenuShortcutCommandDataItem(action: .clearAll),
             MainMenuShortcutCommandDataItem(action: .copy),
             MainMenuShortcutCommandDataItem(action: .copyFirstResult),
+            MainMenuShortcutCommandDataItem(action: .insertTranslation),
             MainMenuShortcutCommandDataItem(action: .focus),
             MainMenuShortcutCommandDataItem(action: .play),
             MainMenuShortcutCommandDataItem(action: .retry),

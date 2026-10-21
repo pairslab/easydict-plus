@@ -41,7 +41,9 @@ extension ShortcutManager {
         Defaults[.hideShortcut] = KeyCombo(key: .y, cocoaModifiers: .command)
         Defaults[.increaseFontSize] = KeyCombo(key: .keypadPlus, cocoaModifiers: .command)
         Defaults[.decreaseFontSize] = KeyCombo(key: .keypadMinus, cocoaModifiers: .command)
-        Defaults[.googleShortcut] = KeyCombo(key: .return, cocoaModifiers: .command)
+        // ⌘↩ commits the translation to the previous app, so Google moves to ⌥⌘↩.
+        Defaults[.insertTranslationShortcut] = KeyCombo(key: .return, cocoaModifiers: .command)
+        Defaults[.googleShortcut] = KeyCombo(key: .return, cocoaModifiers: [.command, .option])
         Defaults[.eudicShortcut] = KeyCombo(key: .return, cocoaModifiers: [.command, .shift])
         Defaults[.appleDictionaryShortcut] = KeyCombo(key: .d, cocoaModifiers: [.command, .shift])
     }

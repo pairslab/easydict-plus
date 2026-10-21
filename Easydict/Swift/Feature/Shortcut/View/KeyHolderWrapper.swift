@@ -143,6 +143,7 @@ extension KeyHolderWrapper {
                 .clearAll: DefaultsKeyWrapper(.clearAllShortcut),
                 .copy: DefaultsKeyWrapper(.copyShortcut),
                 .copyFirstResult: DefaultsKeyWrapper(.copyFirstResultShortcut),
+                .insertTranslation: DefaultsKeyWrapper(.insertTranslationShortcut),
                 .focus: DefaultsKeyWrapper(.focusShortcut),
                 .play: DefaultsKeyWrapper(.playShortcut),
                 .retry: DefaultsKeyWrapper(.retryShortcut),
