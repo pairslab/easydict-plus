@@ -239,7 +239,9 @@ Easydict Plus 首次启动时已经设好了常用快捷键，在 **设置 → �
 
 **怎么升级？会不会被官方版本覆盖？**
 
-不会。Easydict Plus 有自己独立的身份，应用内的"检查更新"只会查询本仓库，不会装上官方版。有新版本时，到 [Releases 页面](https://github.com/pairslab/easydict-plus/releases) 下载新的 DMG，拖进"应用程序"覆盖旧版即可，设置会保留。
+不会。Easydict Plus 有自己独立的身份，应用内的"检查更新"只会查询本仓库，不会装上官方版。有新版本时，到 [Releases 页面](https://github.com/pairslab/easydict-plus/releases) 下载新的 DMG，拖进"应用程序"覆盖旧版即可，设置和 API Key 都会保留。
+
+升级后需要重新授权一次辅助功能：安装包没有苹果开发者签名，系统会把新版当成另一个 App，旧授权的开关虽然还亮着，但已经不起作用。到 **系统设置 → 隐私与安全性 → 辅助功能**，选中旧的 Easydict Plus 点"−"删掉，再点"+"添加 `/Applications/Easydict Plus.app` 并打开开关。
 
 **会上传我的使用数据吗？**
 
