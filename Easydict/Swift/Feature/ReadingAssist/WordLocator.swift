@@ -11,43 +11,131 @@ import NaturalLanguage
 
 // MARK: - LocatedWord
 
-/// Where a double-clicked word sits and the sentence it was read in.
+/// A word directly under the pointer and the sentence it was read in.
 struct LocatedWord: Sendable {
-    /// Screen frame of the word in Cocoa coordinates, when Accessibility exposes the selection bounds.
-    let frame: CGRect?
+    let word: String
+    /// Screen frame of the word in Cocoa coordinates.
+    let frame: CGRect
     /// The sentence around the word, used to explain its meaning in context.
     let sentence: String?
 }
 
 // MARK: - WordLocator
 
-/// Finds the frame and surrounding sentence of a word the user just double-clicked.
-///
-/// A double-click makes the app select exactly the word, so its bounds come from the current
-/// selection; the sentence comes from the paragraph under the mouse. Run it off the main thread.
+/// Reads a word through web text markers or native character ranges, without changing selection.
+/// All Accessibility calls wait on the target app, so run this off the main thread.
 struct WordLocator: Sendable {
     // MARK: Internal
 
     let coordinateSpace: AXCoordinateSpace
     let maximumParagraphHeight: CGFloat
 
-    func locate(_ word: String, near cocoaPoint: CGPoint) -> LocatedWord {
-        let axPoint = coordinateSpace.axPoint(fromCocoa: cocoaPoint)
-        let frame = AXElementReader.element(at: axPoint)
-            .flatMap { selectionFrame(around: $0, near: axPoint) }
-            .map(coordinateSpace.cocoaRect(fromAX:))
-
-        let paragraph = ParagraphLocator(coordinateSpace: coordinateSpace, maximumHeight: maximumParagraphHeight)
-            .paragraph(at: cocoaPoint)
-        let sentence = paragraph.flatMap { Self.sentence(containing: word, in: $0.text) }
-        return LocatedWord(frame: frame, sentence: sentence)
+    func locate(at cocoaPoint: CGPoint) -> LocatedWord? {
+        let point = coordinateSpace.axPoint(fromCocoa: cocoaPoint)
+        guard let element = AXElementReader.element(at: point),
+              AXElementReader.processIdentifier(of: element) != ProcessInfo.processInfo.processIdentifier else {
+            return nil
+        }
+        let ancestors = AXElementReader.ancestry(of: element)
+        guard !ancestors.contains(where: isEditable) else {
+            return nil
+        }
+        for node in ancestors {
+            guard let found = webWord(in: node, at: point)
+                ?? nativeWord(in: node, at: point)
+                ?? labelWord(in: node, at: point) else {
+                continue
+            }
+            let paragraph = ParagraphLocator(coordinateSpace: coordinateSpace, maximumHeight: maximumParagraphHeight)
+                .paragraph(at: cocoaPoint)
+            return LocatedWord(
+                word: found.text,
+                frame: coordinateSpace.cocoaRect(fromAX: found.frame),
+                sentence: paragraph.flatMap { Self.sentence(containing: found.text, in: $0.text) }
+            )
+        }
+        return nil
     }
 
     // MARK: Private
 
     private static let maximumSentenceLength = 400
-    /// The selection must be this close to the click to belong to it.
-    private static let hitSlop: CGFloat = 24
+    private static let hitSlop: CGFloat = 2
+
+    private func isEditable(_ element: AXUIElement) -> Bool {
+        AXElementReader.attribute(element, "AXEditable") as? Bool == true
+            || AXElementReader.isSettable(element, kAXValueAttribute)
+    }
+
+    /// Left and right ranges differ at word boundaries; accept only the range under the pointer.
+    private func webWord(in element: AXUIElement, at point: CGPoint) -> (text: String, frame: CGRect)? {
+        guard let marker = AXElementReader.parameterizedAttribute(
+            element, "AXTextMarkerForPosition", AXElementReader.pointValue(point)
+        ) else {
+            return nil
+        }
+        for attribute in ["AXLeftWordTextMarkerRangeForTextMarker", "AXRightWordTextMarkerRangeForTextMarker"] {
+            guard let range = AXElementReader.parameterizedAttribute(element, attribute, marker),
+                  let text = AXElementReader.parameterizedAttribute(element, "AXStringForTextMarkerRange", range) as? String,
+                  let frame = AXElementReader.rect(from: AXElementReader.parameterizedAttribute(
+                      element, "AXBoundsForTextMarkerRange", range
+                  )), let word = validated(text, frame: frame, at: point) else {
+                continue
+            }
+            return word
+        }
+        return nil
+    }
+
+    /// Tokenize the native paragraph at the reported character, never an unrelated existing selection.
+    private func nativeWord(in element: AXUIElement, at point: CGPoint) -> (text: String, frame: CGRect)? {
+        guard let characterRange = AXElementReader.range(from: AXElementReader.parameterizedAttribute(
+            element, "AXRangeForPosition", AXElementReader.pointValue(point)
+        )), let text = AXElementReader.string(element, kAXValueAttribute) else {
+            return nil
+        }
+        let nsText = text as NSString
+        guard characterRange.location >= 0, characterRange.location < nsText.length else {
+            return nil
+        }
+        let paragraphRange = nsText.paragraphRange(for: NSRange(location: characterRange.location, length: 0))
+        let paragraph = nsText.substring(with: paragraphRange)
+        let offset = characterRange.location - paragraphRange.location
+        guard let position = Range(NSRange(location: offset, length: 0), in: paragraph)?.lowerBound else {
+            return nil
+        }
+        let tokenizer = NLTokenizer(unit: .word)
+        tokenizer.string = paragraph
+        let token = tokenizer.tokenRange(at: position)
+        let tokenRange = NSRange(token, in: paragraph)
+        let range = CFRange(location: paragraphRange.location + tokenRange.location, length: tokenRange.length)
+        guard let frame = AXElementReader.rect(from: AXElementReader.parameterizedAttribute(
+            element, "AXBoundsForRange", AXElementReader.rangeValue(range)
+        )) else {
+            return nil
+        }
+        return validated(String(paragraph[token]), frame: frame, at: point)
+    }
+
+    /// A static label can be used only when the entire label is one word.
+    private func labelWord(in element: AXUIElement, at point: CGPoint) -> (text: String, frame: CGRect)? {
+        guard AXElementReader.role(of: element) == kAXStaticTextRole,
+              let text = AXElementReader.string(element, kAXValueAttribute),
+              let frame = AXElementReader.frame(of: element) else {
+            return nil
+        }
+        return validated(text, frame: frame, at: point)
+    }
+
+    private func validated(_ text: String, frame: CGRect, at point: CGPoint) -> (text: String, frame: CGRect)? {
+        let word = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard WordLookupManager.accepts(word), frame.width > 0, frame.height > 0,
+              frame.height <= maximumParagraphHeight,
+              frame.insetBy(dx: -Self.hitSlop, dy: -Self.hitSlop).contains(point) else {
+            return nil
+        }
+        return (word, frame)
+    }
 
     /// The sentence in `text` that contains `word` as a whole word, or the start of the text.
     private static func sentence(containing word: String, in text: String) -> String? {
@@ -67,36 +155,5 @@ struct WordLocator: Sendable {
 
         let sentence = (match ?? text).trimmingCharacters(in: .whitespacesAndNewlines)
         return sentence.isEmpty ? nil : String(sentence.prefix(maximumSentenceLength))
-    }
-
-    /// Bounds of the selection in the element or its ancestors, from web text markers or a native range.
-    private func selectionFrame(around element: AXUIElement, near point: CGPoint) -> CGRect? {
-        for node in AXElementReader.ancestry(of: element) {
-            let bounds: CGRect?
-            if let markerRange = AXElementReader.attribute(node, "AXSelectedTextMarkerRange") {
-                bounds = AXElementReader.rect(
-                    from: AXElementReader.parameterizedAttribute(node, "AXBoundsForTextMarkerRange", markerRange)
-                )
-            } else if let range = AXElementReader.range(from: AXElementReader.attribute(
-                node,
-                kAXSelectedTextRangeAttribute
-            )),
-                range.length > 0 {
-                bounds = AXElementReader.rect(
-                    from: AXElementReader.parameterizedAttribute(
-                        node,
-                        "AXBoundsForRange",
-                        AXElementReader.rangeValue(range)
-                    )
-                )
-            } else {
-                bounds = nil
-            }
-
-            if let bounds, bounds.width > 0, bounds.insetBy(dx: -Self.hitSlop, dy: -Self.hitSlop).contains(point) {
-                return bounds
-            }
-        }
-        return nil
     }
 }

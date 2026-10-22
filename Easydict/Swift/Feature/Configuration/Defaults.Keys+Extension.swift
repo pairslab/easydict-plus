@@ -226,7 +226,7 @@ extension Defaults.Keys {
         default: ""
     )
 
-    /// Whether double-clicking a foreign word in read-only text shows a dictionary card.
+    /// Whether tapping Option over a foreign word in read-only text shows a dictionary card.
     static let enableWordLookup = Key<Bool>("EZConfiguration_kEnableWordLookup", default: true)
 
     /// Modifier held alone to translate the paragraph under the mouse.

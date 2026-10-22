@@ -26,17 +26,19 @@ final class HoverTranslationManager: NSObject {
 
     @objc static let shared = HoverTranslationManager()
 
-    /// Follows the trigger setting; event monitoring runs only while a trigger is chosen.
+    /// Coordinates word taps and paragraph holds without installing competing event monitors.
     @objc
     func start() {
         guard triggerObservation == nil else {
             return
         }
-        triggerObservation = Defaults.publisher(.hoverTranslationTrigger, options: [.initial])
+        triggerObservation = Defaults.publisher(keys: .hoverTranslationTrigger, .enableWordLookup, options: [])
             .receive(on: DispatchQueue.main)
-            .sink { [weak self] change in
-                self?.apply(change.newValue)
+            .sink { [weak self] in
+                self?.apply(Defaults[.hoverTranslationTrigger], wordLookupEnabled: Defaults[.enableWordLookup])
             }
+        // Keys still using their default value need not emit an initial KVO event.
+        apply(Defaults[.hoverTranslationTrigger], wordLookupEnabled: Defaults[.enableWordLookup])
     }
 
     // MARK: Private
@@ -49,6 +51,9 @@ final class HoverTranslationManager: NSObject {
 
     /// Show the outline immediately, but let shortcuts and movement cancel before a network request.
     private static let translationDelay: TimeInterval = 0.15
+    /// A tap is recognized on release; paragraph requests wait until this ambiguity is resolved.
+    private static let wordTapInterval: TimeInterval = 0.25
+    private static let triggerModifiers: NSEvent.ModifierFlags = [.command, .option, .control, .shift]
     /// Chat messages can change while hovered, so only reuse their geometry briefly.
     private static let paragraphReuseInterval: TimeInterval = 0.35
     private static let cacheLimit = 64
@@ -63,6 +68,9 @@ final class HoverTranslationManager: NSObject {
     private var triggerObservation: AnyCancellable?
     private var activationObservation: NSObjectProtocol?
     private var modifierFlag: NSEvent.ModifierFlags?
+    private var wordLookupEnabled = false
+    private var heldModifiers: NSEvent.ModifierFlags = []
+    private var wordTapStartedAt: TimeInterval?
     private var state = State.idle
 
     private var dwellTask: Task<(), Never>?
@@ -81,8 +89,9 @@ final class HoverTranslationManager: NSObject {
 
     // MARK: Setup
 
-    private func apply(_ trigger: HoverTranslationTrigger) {
+    private func apply(_ trigger: HoverTranslationTrigger, wordLookupEnabled: Bool) {
         reset()
+        WordLookupManager.shared.dismiss()
         eventMonitor.stop()
         if let activationObservation {
             NSWorkspace.shared.notificationCenter.removeObserver(activationObservation)
@@ -90,7 +99,9 @@ final class HoverTranslationManager: NSObject {
         }
 
         modifierFlag = trigger.modifierFlag
-        guard modifierFlag != nil else {
+        self.wordLookupEnabled = wordLookupEnabled
+        heldModifiers = NSEvent.modifierFlags.intersection(Self.triggerModifiers)
+        guard modifierFlag != nil || wordLookupEnabled else {
             logInfo("Hover translation is off")
             return
         }
@@ -116,6 +127,7 @@ final class HoverTranslationManager: NSObject {
 
     /// Returns to idle, hiding the outline and the card.
     private func reset() {
+        wordTapStartedAt = nil
         if state == .tracking {
             endTracking(translatesHighlighted: false)
         }
@@ -142,15 +154,29 @@ final class HoverTranslationManager: NSObject {
     }
 
     private func handleModifiersChanged(_ flags: NSEvent.ModifierFlags) {
-        guard let modifierFlag else {
+        let previousModifiers = heldModifiers
+        heldModifiers = flags.intersection(Self.triggerModifiers)
+        guard heldModifiers != previousModifiers else {
             return
         }
 
-        let heldModifiers = flags.intersection([.command, .option, .control, .shift])
-        if heldModifiers == modifierFlag {
-            guard state == .idle else {
-                return
-            }
+        let now = ProcessInfo.processInfo.systemUptime
+        if heldModifiers.isEmpty, let startedAt = wordTapStartedAt,
+           now - startedAt < Self.wordTapInterval {
+            reset()
+            WordLookupManager.shared.lookUp(at: NSEvent.mouseLocation)
+            return
+        }
+        wordTapStartedAt = nil
+
+        // Only a fresh standalone press can start a gesture, never the tail of a shortcut.
+        let startsGesture = previousModifiers.isEmpty
+        if startsGesture, heldModifiers == .option, wordLookupEnabled {
+            wordTapStartedAt = now
+            WordLookupManager.shared.dismiss()
+        }
+        if startsGesture, let modifierFlag, heldModifiers == modifierFlag {
+            WordLookupManager.shared.dismiss()
             beginTracking()
             return
         }
@@ -175,6 +201,7 @@ final class HoverTranslationManager: NSObject {
     }
 
     private func handleScroll() {
+        wordTapStartedAt = nil
         // Scrolling moves the text away from the outline and the card.
         dismissCard()
         guard state == .tracking else {
@@ -271,8 +298,11 @@ final class HoverTranslationManager: NSObject {
         guard paragraph != cardParagraph else {
             return
         }
+        let remainingTapInterval = wordTapStartedAt.map {
+            max(0, Self.wordTapInterval - (ProcessInfo.processInfo.systemUptime - $0))
+        } ?? 0
         dwellTask = Task { [weak self] in
-            await Task.sleep(seconds: Self.translationDelay)
+            await Task.sleep(seconds: max(Self.translationDelay, remainingTapInterval))
             guard let self, !Task.isCancelled, state == .tracking, highlightedParagraph == paragraph else {
                 return
             }
