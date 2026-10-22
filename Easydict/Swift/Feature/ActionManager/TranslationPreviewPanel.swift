@@ -99,8 +99,8 @@ final class TranslationPreviewPanel {
 
     private lazy var hostingController: NSHostingController<TranslationPreviewView> = {
         let placeholder = TranslationPreviewModel(
-            serviceName: "",
-            serviceIconName: "",
+            serviceTitle: "",
+            serviceIcon: nil,
             activity: .translating
         )
         let controller = NSHostingController(rootView: TranslationPreviewView(model: placeholder))
