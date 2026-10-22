@@ -230,6 +230,7 @@
 		E5F1914CF72D29567200C99F /* TextReplacementServiceOption.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE85941526BE6C95434E5D8A /* TextReplacementServiceOption.swift */; };
 		104B0405D7AF42918CFE5A7E /* TranslationPreviewPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1BA69072FFA45623E3344EB7 /* TranslationPreviewPanel.swift */; };
 		4317BC54438C3004B8210E2A /* TranslationPreviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9285DF673FDDFAA52DF5BF27 /* TranslationPreviewView.swift */; };
+		545F703AEC71A6A6088C19C4 /* TranslationCardStyle.swift in Sources */ = {isa = PBXBuildFile; fileRef = DB599C8AA74E94EFD3C0DE5E /* TranslationCardStyle.swift */; };
 		03715A2A2E6D253E0067259C /* FocusedElementInfo.swift in Sources */ = {isa = PBXBuildFile; fileRef = 03A91F142E63E1FB00896B17 /* FocusedElementInfo.swift */; };
 		0371A5012DB1291E0097D4A1 /* GitHubService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0371A5002DB1291E0097D4A1 /* GitHubService.swift */; };
 		03779F0E2BB256A7008D3C42 /* OpenAIService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 03779F0B2BB256A7008D3C42 /* OpenAIService.swift */; };
@@ -1030,6 +1031,7 @@
 		DE85941526BE6C95434E5D8A /* TextReplacementServiceOption.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TextReplacementServiceOption.swift; sourceTree = "<group>"; };
 		1BA69072FFA45623E3344EB7 /* TranslationPreviewPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranslationPreviewPanel.swift; sourceTree = "<group>"; };
 		9285DF673FDDFAA52DF5BF27 /* TranslationPreviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranslationPreviewView.swift; sourceTree = "<group>"; };
+		DB599C8AA74E94EFD3C0DE5E /* TranslationCardStyle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranslationCardStyle.swift; sourceTree = "<group>"; };
 		03A1B2C42F70000100A1B2C3 /* MiniMaxService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MiniMaxService.swift; sourceTree = "<group>"; };
 		03A3E1542BEBDB2000E7E210 /* Throttler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Throttler.swift; sourceTree = "<group>"; };
 		03A5B4BE2E0AB23900BA8F2E /* String+OCR.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "String+OCR.swift"; sourceTree = "<group>"; };
@@ -2435,6 +2437,7 @@
 				DE85941526BE6C95434E5D8A /* TextReplacementServiceOption.swift */,
 				1BA69072FFA45623E3344EB7 /* TranslationPreviewPanel.swift */,
 				9285DF673FDDFAA52DF5BF27 /* TranslationPreviewView.swift */,
+				DB599C8AA74E94EFD3C0DE5E /* TranslationCardStyle.swift */,
 			);
 			path = ActionManager;
 			sourceTree = "<group>";
@@ -4911,6 +4914,7 @@
 				E5F1914CF72D29567200C99F /* TextReplacementServiceOption.swift in Sources */,
 				104B0405D7AF42918CFE5A7E /* TranslationPreviewPanel.swift in Sources */,
 				4317BC54438C3004B8210E2A /* TranslationPreviewView.swift in Sources */,
+				545F703AEC71A6A6088C19C4 /* TranslationCardStyle.swift in Sources */,
 				EA9943F02B5354C400EE7B97 /* ShowWindowPositionExtensions.swift in Sources */,
 				96B2F1C52C07782400AD3126 /* GitHubReleaseFetcher.swift in Sources */,
 				CB8C43002C441B74004EC86F /* BaiduApiResponse.swift in Sources */,

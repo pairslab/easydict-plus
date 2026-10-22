@@ -61,8 +61,7 @@ struct WordLookupCardView: View {
         var tipX: CGFloat = 40
     }
 
-    /// Transparent margin around the card so its shadow is not clipped by the panel.
-    static let shadowInset: CGFloat = 18
+    static let shadowInset = TranslationCardStyle.shadowInset
     static let arrowSize = CGSize(width: 18, height: 8)
     static let cardWidth: CGFloat = 320
 
@@ -71,7 +70,7 @@ struct WordLookupCardView: View {
     var arrow = Arrow()
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 11) {
+        VStack(alignment: .leading, spacing: TranslationCardStyle.sectionSpacing) {
             headword
             senses
             if model.hasContext {
@@ -80,16 +79,11 @@ struct WordLookupCardView: View {
                 contextualMeaning
             }
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 14)
+        .padding(.horizontal, TranslationCardStyle.horizontalPadding)
+        .padding(.vertical, TranslationCardStyle.verticalPadding)
         .frame(width: Self.cardWidth, alignment: .leading)
         .padding(arrow.edge == .top ? .top : .bottom, Self.arrowSize.height)
-        .background(.regularMaterial, in: cardShape)
-        .overlay {
-            cardShape.stroke(.primary.opacity(0.1), lineWidth: 0.5)
-        }
-        .shadow(color: .black.opacity(0.2), radius: 14, y: 6)
-        .padding(Self.shadowInset)
+        .translationCardChrome(in: cardShape)
         .animation(.easeOut(duration: 0.18), value: model.isLoadingDictionary)
         .animation(.easeOut(duration: 0.16), value: model.contextualMeaning)
     }
@@ -97,7 +91,7 @@ struct WordLookupCardView: View {
     // MARK: Private
 
     private var cardShape: PopoverShape {
-        PopoverShape(arrow: arrow, arrowSize: Self.arrowSize, cornerRadius: 14)
+        PopoverShape(arrow: arrow, arrowSize: Self.arrowSize, cornerRadius: TranslationCardStyle.cornerRadius)
     }
 
     /// The word with its pronunciations beside it, or below it when a long word leaves no room.
@@ -116,7 +110,7 @@ struct WordLookupCardView: View {
 
     private var wordTitle: some View {
         Text(model.word)
-            .font(.system(size: 22, weight: .semibold, design: .serif))
+            .font(.system(size: 20, weight: .semibold, design: .serif))
             .foregroundStyle(.primary)
             .lineLimit(1)
             .truncationMode(.tail)
@@ -141,10 +135,10 @@ struct WordLookupCardView: View {
     @ViewBuilder
     private var senses: some View {
         if model.isLoadingDictionary {
-            SkeletonLines(widths: [220, 160])
+            LoadingLines(widths: [220, 160])
         } else if model.senses.isEmpty {
             Text("word_lookup.no_definition")
-                .font(.system(size: 13))
+                .font(TranslationCardStyle.placeholderFont)
                 .foregroundStyle(.tertiary)
         } else {
             VStack(alignment: .leading, spacing: 6) {
@@ -159,7 +153,7 @@ struct WordLookupCardView: View {
                                 .background(Color.accentColor.opacity(0.12), in: Capsule())
                         }
                         Text(sense.meaning)
-                            .font(.system(size: 13.5))
+                            .font(TranslationCardStyle.bodyFont)
                             .foregroundStyle(.primary)
                             .lineLimit(2)
                             .fixedSize(horizontal: false, vertical: true)
@@ -174,21 +168,21 @@ struct WordLookupCardView: View {
         HStack(alignment: .firstTextBaseline, spacing: 7) {
             Label("word_lookup.in_context", systemSymbol: .sparkles)
                 .labelStyle(.titleAndIcon)
-                .font(.system(size: 11, weight: .semibold))
+                .font(TranslationCardStyle.captionFont)
                 .foregroundStyle(Color.accentColor)
                 .fixedSize()
 
             if model.contextualMeaning.isEmpty {
                 if model.isLoadingContext {
-                    SkeletonLines(widths: [150])
+                    LoadingLines(widths: [150])
                 } else {
                     Text("word_lookup.no_context")
-                        .font(.system(size: 13))
+                        .font(TranslationCardStyle.placeholderFont)
                         .foregroundStyle(.tertiary)
                 }
             } else {
                 Text(model.contextualMeaning)
-                    .font(.system(size: 13.5))
+                    .font(TranslationCardStyle.bodyFont)
                     .foregroundStyle(.primary)
                     .lineLimit(3)
                     .fixedSize(horizontal: false, vertical: true)
@@ -282,32 +276,4 @@ struct PopoverShape: Shape {
             control: CGPoint(x: tipX + halfWidth * 0.35 * direction, y: tipY)
         )
     }
-}
-
-// MARK: - SkeletonLines
-
-/// Softly pulsing placeholder bars shown while content loads.
-private struct SkeletonLines: View {
-    // MARK: Internal
-
-    let widths: [CGFloat]
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            ForEach(Array(widths.enumerated()), id: \.offset) { _, width in
-                Capsule().frame(width: width, height: 8)
-            }
-        }
-        .foregroundStyle(.primary.opacity(isPulsing ? 0.06 : 0.14))
-        .padding(.vertical, 3)
-        .onAppear {
-            withAnimation(.easeInOut(duration: 0.8).repeatForever(autoreverses: true)) {
-                isPulsing = true
-            }
-        }
-    }
-
-    // MARK: Private
-
-    @State private var isPulsing = false
 }

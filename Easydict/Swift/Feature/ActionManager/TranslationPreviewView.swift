@@ -17,11 +17,21 @@ import SwiftUI
 final class TranslationPreviewModel: ObservableObject {
     // MARK: Lifecycle
 
-    init(serviceName: String, serviceIconName: String, activity: Activity, layout: Layout = .compact) {
-        self.serviceName = serviceName
-        self.serviceIconName = serviceIconName
+    init(serviceTitle: String, serviceIcon: NSImage?, activity: Activity, layout: Layout = .compact) {
+        self.serviceTitle = serviceTitle
+        self.serviceIcon = serviceIcon
         self.activity = activity
         self.layout = layout
+    }
+
+    /// A card for `service`, presented as translation results present it; see `ServiceDisplay`.
+    convenience init(service: QueryService, activity: Activity, layout: Layout = .compact) {
+        self.init(
+            serviceTitle: ServiceDisplay.title(for: service),
+            serviceIcon: ServiceDisplay.icon(for: service),
+            activity: activity,
+            layout: layout
+        )
     }
 
     // MARK: Internal
@@ -62,8 +72,8 @@ final class TranslationPreviewModel: ObservableObject {
         }
     }
 
-    let serviceName: String
-    let serviceIconName: String
+    let serviceTitle: String
+    let serviceIcon: NSImage?
     let activity: Activity
     let layout: Layout
 
@@ -77,27 +87,21 @@ final class TranslationPreviewModel: ObservableObject {
 struct TranslationPreviewView: View {
     // MARK: Internal
 
-    /// Transparent margin around the card so its shadow is not clipped by the panel.
-    static let shadowInset: CGFloat = 18
+    static let shadowInset = TranslationCardStyle.shadowInset
     /// Horizontal padding between the card edge and its text.
-    static let contentInset: CGFloat = 14
+    static let contentInset = TranslationCardStyle.horizontalPadding
 
     @ObservedObject var model: TranslationPreviewModel
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: TranslationCardStyle.sectionSpacing) {
             header
             content
         }
         .padding(.horizontal, Self.contentInset)
-        .padding(.vertical, 12)
+        .padding(.vertical, TranslationCardStyle.verticalPadding)
         .frame(width: model.layout.width, alignment: .leading)
-        .background(.regularMaterial, in: cardShape)
-        .overlay {
-            cardShape.strokeBorder(.primary.opacity(0.1), lineWidth: 0.5)
-        }
-        .shadow(color: .black.opacity(0.2), radius: 14, y: 6)
-        .padding(Self.shadowInset)
+        .translationCardChrome(in: cardShape)
         .animation(.spring(response: 0.3, dampingFraction: 0.86), value: model.phase)
         .animation(.easeOut(duration: 0.16), value: model.text)
     }
@@ -105,7 +109,7 @@ struct TranslationPreviewView: View {
     // MARK: Private
 
     private var cardShape: RoundedRectangle {
-        RoundedRectangle(cornerRadius: 14, style: .continuous)
+        RoundedRectangle(cornerRadius: TranslationCardStyle.cornerRadius, style: .continuous)
     }
 
     private var activityTitle: LocalizedStringKey {
@@ -119,14 +123,18 @@ struct TranslationPreviewView: View {
 
     private var header: some View {
         HStack(spacing: 7) {
-            Image(model.serviceIconName)
-                .resizable()
-                .scaledToFit()
-                .frame(width: 16, height: 16)
-                .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
+            if let icon = model.serviceIcon {
+                Image(nsImage: icon)
+                    .resizable()
+                    .renderingMode(icon.isTemplate ? .template : .original)
+                    .scaledToFit()
+                    .foregroundStyle(.secondary)
+                    .frame(width: TranslationCardStyle.headerIconSize, height: TranslationCardStyle.headerIconSize)
+                    .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
+            }
 
-            Text(model.serviceName)
-                .font(.system(size: 12, weight: .semibold))
+            Text(model.serviceTitle)
+                .font(TranslationCardStyle.headerFont)
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
 
@@ -155,13 +163,13 @@ struct TranslationPreviewView: View {
 
         case let .completed(outcome):
             Label(outcomeTitle(outcome), systemSymbol: outcomeSymbol(outcome))
-                .font(.system(size: 11, weight: .semibold))
+                .font(TranslationCardStyle.captionFont)
                 .foregroundStyle(outcome == .copied ? Color.accentColor : Color.green)
                 .transition(.scale(scale: 0.8).combined(with: .opacity))
 
         case .failed:
             Label("action.text_replacement.preview.failed", systemSymbol: .exclamationmarkTriangleFill)
-                .font(.system(size: 11, weight: .semibold))
+                .font(TranslationCardStyle.captionFont)
                 .foregroundStyle(.orange)
                 .transition(.scale(scale: 0.8).combined(with: .opacity))
         }
@@ -171,12 +179,12 @@ struct TranslationPreviewView: View {
     private var content: some View {
         if case let .failed(message) = model.phase {
             Text(message)
-                .font(.system(size: 12))
+                .font(TranslationCardStyle.placeholderFont)
                 .foregroundStyle(.secondary)
                 .lineLimit(4)
                 .fixedSize(horizontal: false, vertical: true)
         } else if model.text.isEmpty {
-            PlaceholderLines()
+            LoadingLines(widths: [nil, 180])
         } else {
             Text(model.text)
                 .font(.system(size: model.layout.fontSize))
@@ -208,29 +216,4 @@ struct TranslationPreviewView: View {
             .docOnClipboardFill
         }
     }
-}
-
-// MARK: - PlaceholderLines
-
-/// Softly pulsing skeleton lines shown until the first chunk of text arrives.
-private struct PlaceholderLines: View {
-    // MARK: Internal
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Capsule().frame(height: 8)
-            Capsule().frame(width: 180, height: 8)
-        }
-        .foregroundStyle(.primary.opacity(isPulsing ? 0.06 : 0.14))
-        .padding(.vertical, 3)
-        .onAppear {
-            withAnimation(.easeInOut(duration: 0.8).repeatForever(autoreverses: true)) {
-                isPulsing = true
-            }
-        }
-    }
-
-    // MARK: Private
-
-    @State private var isPulsing = false
 }
