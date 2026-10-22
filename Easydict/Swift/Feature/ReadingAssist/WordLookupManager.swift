@@ -138,7 +138,7 @@ final class WordLookupManager {
         let model = WordLookupModel(word: located.word)
         presentedModel = model
         present(model, located: located)
-        loadContext(for: model, at: mouseLocation, using: locator)
+        loadContext(for: model, located: located, at: mouseLocation, using: locator)
     }
 
     /// Whether the pointer is still where the lookup started, so a retry reads the same word.
@@ -167,10 +167,14 @@ final class WordLookupManager {
         })
     }
 
-    private func loadContext(for model: WordLookupModel, at point: CGPoint, using locator: WordLocator) {
-        let word = model.word
+    private func loadContext(
+        for model: WordLookupModel,
+        located: LocatedWord,
+        at point: CGPoint,
+        using locator: WordLocator
+    ) {
         let workItem = DispatchWorkItem { [weak self] in
-            let sentence = locator.context(for: word, at: point)
+            let sentence = locator.context(for: located, at: point)
             DispatchQueue.main.async {
                 guard let self, self.presentedModel === model else {
                     return
