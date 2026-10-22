@@ -14,7 +14,7 @@ import Defaults
 
 /// Translates the paragraph under the mouse while the trigger modifier is held.
 ///
-/// Holding the modifier alone for a moment starts tracking: the paragraph under the mouse is
+/// Holding the modifier alone starts tracking immediately: the paragraph under the mouse is
 /// outlined and the outline follows the pointer between paragraphs. Resting on a paragraph,
 /// or releasing the modifier, translates it into a card right below. The card stays after the
 /// release and fades out when the mouse leaves it, the page scrolls, a click or key press
@@ -43,19 +43,14 @@ final class HoverTranslationManager: NSObject {
 
     private enum State {
         case idle
-        /// The modifier is down; waiting to be sure it is not part of a shortcut.
-        case arming
         /// The modifier is held and the paragraph under the mouse is outlined.
         case tracking
     }
 
-    private enum Timing {
-        /// How long the modifier must be held alone before tracking starts.
-        static let arming: TimeInterval = 0.25
-        /// How long the mouse rests on a paragraph before it is translated.
-        static let dwell: TimeInterval = 0.35
-    }
-
+    /// Show the outline immediately, but let shortcuts and movement cancel before a network request.
+    private static let translationDelay: TimeInterval = 0.15
+    /// Chat messages can change while hovered, so only reuse their geometry briefly.
+    private static let paragraphReuseInterval: TimeInterval = 0.35
     private static let cacheLimit = 64
     /// Margin around the paragraph and its card that still counts as reading them.
     private static let readingMargin: CGFloat = 28
@@ -70,13 +65,14 @@ final class HoverTranslationManager: NSObject {
     private var modifierFlag: NSEvent.ModifierFlags?
     private var state = State.idle
 
-    private var armingTask: Task<(), Never>?
     private var dwellTask: Task<(), Never>?
     private var translationTask: Task<(), Never>?
 
     private var isLocating = false
+    private var lookupGeneration = 0
     private var pendingLocation: CGPoint?
     private var highlightedParagraph: HoveredParagraph?
+    private var paragraphLocatedAt: TimeInterval = 0
     private var cardParagraph: HoveredParagraph?
     private var cardModel: TranslationPreviewModel?
 
@@ -120,7 +116,6 @@ final class HoverTranslationManager: NSObject {
 
     /// Returns to idle, hiding the outline and the card.
     private func reset() {
-        cancelArming()
         if state == .tracking {
             endTracking(translatesHighlighted: false)
         }
@@ -156,20 +151,12 @@ final class HoverTranslationManager: NSObject {
             guard state == .idle else {
                 return
             }
-            state = .arming
-            armingTask = Task { [weak self] in
-                await Task.sleep(seconds: Timing.arming)
-                guard let self, !Task.isCancelled, state == .arming else {
-                    return
-                }
-                beginTracking()
-            }
+            beginTracking()
             return
         }
 
         // Released, or another modifier joined it for a shortcut.
         let wasTracking = state == .tracking
-        cancelArming()
         if wasTracking {
             endTracking(translatesHighlighted: heldModifiers.isEmpty)
         }
@@ -180,7 +167,7 @@ final class HoverTranslationManager: NSObject {
         switch state {
         case .tracking:
             locateParagraph(at: location)
-        case .arming, .idle:
+        case .idle:
             if cardParagraph != nil, !isReading(at: location) {
                 dismissCard()
             }
@@ -193,6 +180,8 @@ final class HoverTranslationManager: NSObject {
         guard state == .tracking else {
             return
         }
+        lookupGeneration += 1
+        pendingLocation = nil
         highlightedParagraph = nil
         ParagraphHighlightPanel.shared.hide()
         locateParagraph(at: NSEvent.mouseLocation)
@@ -200,15 +189,8 @@ final class HoverTranslationManager: NSObject {
 
     // MARK: Tracking
 
-    private func cancelArming() {
-        armingTask?.cancel()
-        armingTask = nil
-        if state == .arming {
-            state = .idle
-        }
-    }
-
     private func beginTracking() {
+        lookupGeneration += 1
         state = .tracking
         locateParagraph(at: NSEvent.mouseLocation)
     }
@@ -216,6 +198,7 @@ final class HoverTranslationManager: NSObject {
     /// Stops following the mouse; a release translates the outlined paragraph if it has no card yet.
     private func endTracking(translatesHighlighted: Bool) {
         state = .idle
+        lookupGeneration += 1
         dwellTask?.cancel()
         pendingLocation = nil
         if translatesHighlighted, let highlightedParagraph, highlightedParagraph != cardParagraph {
@@ -227,11 +210,20 @@ final class HoverTranslationManager: NSObject {
 
     /// Looks up the paragraph off the main thread; while a lookup runs, only the latest point is kept.
     private func locateParagraph(at location: CGPoint) {
+        // Pointer motion within the same paragraph needs no additional cross-process AX calls.
+        if let highlightedParagraph, highlightedParagraph.frame.contains(location),
+           ProcessInfo.processInfo.systemUptime - paragraphLocatedAt < Self.paragraphReuseInterval {
+            if isLocating {
+                pendingLocation = location
+            }
+            return
+        }
         guard !isLocating else {
             pendingLocation = location
             return
         }
         isLocating = true
+        let generation = lookupGeneration
 
         let screen = NSScreen.screens.first { $0.frame.contains(location) } ?? NSScreen.main
         let locator = ParagraphLocator(
@@ -241,20 +233,30 @@ final class HoverTranslationManager: NSObject {
         locatorQueue.async { [weak self] in
             let paragraph = locator.paragraph(at: location)
             DispatchQueue.main.async {
-                self?.didLocate(paragraph)
+                self?.didLocate(paragraph, generation: generation)
             }
         }
     }
 
-    private func didLocate(_ paragraph: HoveredParagraph?) {
+    private func didLocate(_ paragraph: HoveredParagraph?, generation: Int) {
         isLocating = false
-        if let pendingLocation {
-            // The mouse moved on meanwhile; skip this stale result.
-            self.pendingLocation = nil
-            locateParagraph(at: pendingLocation)
+        let latestLocation = pendingLocation
+        pendingLocation = nil
+        guard state == .tracking else {
             return
         }
-        guard state == .tracking, paragraph != highlightedParagraph else {
+        guard generation == lookupGeneration else {
+            // A scroll or a new hold invalidates geometry obtained before that transition.
+            locateParagraph(at: latestLocation ?? NSEvent.mouseLocation)
+            return
+        }
+        if let latestLocation, paragraph?.frame.contains(latestLocation) != true {
+            locateParagraph(at: latestLocation)
+            return
+        }
+        // A result remains useful when the pointer moved within the paragraph while AX was busy.
+        paragraphLocatedAt = ProcessInfo.processInfo.systemUptime
+        guard paragraph != highlightedParagraph else {
             return
         }
 
@@ -270,7 +272,7 @@ final class HoverTranslationManager: NSObject {
             return
         }
         dwellTask = Task { [weak self] in
-            await Task.sleep(seconds: Timing.dwell)
+            await Task.sleep(seconds: Self.translationDelay)
             guard let self, !Task.isCancelled, state == .tracking, highlightedParagraph == paragraph else {
                 return
             }

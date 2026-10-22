@@ -8,8 +8,6 @@
 
 import Defaults
 import Logging
-import NIOCore
-import NIOPosix
 import Vapor
 
 // MARK: - HTTPServer
@@ -30,13 +28,8 @@ class VaporServer {
             // These code should be run only once.
             try LoggingSystem.bootstrap(from: &env)
 
-            // This attempts to install NIO as the Swift Concurrency global executor.
-            // You should not call any async functions before this point.
-            let executorTakeoverSuccess = NIOSingletons
-                .unsafeTryInstallSingletonPosixEventLoopGroupAsConcurrencyGlobalExecutor()
-            logInfo(
-                "Running with \(executorTakeoverSuccess ? "SwiftNIO" : "standard") Swift Concurrency default executor"
-            )
+            // UI and service tasks already exist when this server is initialized.
+            // Keep the system executor rather than replacing it after async work starts.
         } catch {
             logError("Failed to detect environment: \(error)")
         }
