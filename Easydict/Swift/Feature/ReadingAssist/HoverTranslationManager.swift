@@ -381,8 +381,7 @@ final class HoverTranslationManager: NSObject {
 
         let service = ActionManager.shared.translateService
         let model = TranslationPreviewModel(
-            serviceName: service.name(),
-            serviceIconName: service.iconName(),
+            service: service,
             activity: .translating,
             layout: .reading(width: paragraph.frame.width + 2 * TranslationPreviewView.contentInset)
         )

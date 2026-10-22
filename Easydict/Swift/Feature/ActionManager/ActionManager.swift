@@ -449,8 +449,7 @@ class ActionManager: NSObject {
         }
 
         let model = TranslationPreviewModel(
-            serviceName: service.name(),
-            serviceIconName: service.iconName(),
+            service: service,
             activity: type == .translate ? .translating : .polishing
         )
         TranslationPreviewPanel.shared.present(

@@ -73,6 +73,8 @@
         mm_strongify(self);
         [self addSubview:imageView];
         [imageView setImage:[NSImage imageNamed:@"Apple Translate"]];
+        // Only template symbols take the tint, used where a service shows no brand icon.
+        imageView.contentTintColor = NSColor.secondaryLabelColor;
     }];
     self.serviceIcon.mas_key = @"typeImageView";
     
@@ -99,7 +101,7 @@
     [self addSubview:self.serviceModelButton];
     self.serviceModelButton.bordered = NO;
     self.serviceModelButton.cornerRadius = 3.0;
-    self.serviceModelButton.titleFont = [NSFont systemFontOfSize:10];
+    self.serviceModelButton.titleFont = [NSFont systemFontOfSize:11];
     self.serviceModelButton.lineBreakMode = NSLineBreakByClipping;
 
     [self.serviceModelButton executeLight:^(EZButton *button) {
@@ -276,11 +278,13 @@
     _result = result;
     
     EZQueryService *service = self.service;
-    NSString *iconName = service.iconName ?: result.serviceTypeWithUniqueIdentifier;
-    self.serviceIcon.image = [NSImage imageNamed:iconName];
+    // Titles match the floating translation cards; some services show no brand, see `EZServiceDisplay`.
+    NSImage *icon = service ? [EZServiceDisplay iconForService:service] : nil;
+    self.serviceIcon.image = icon ?: [NSImage imageNamed:result.serviceTypeWithUniqueIdentifier];
     
-    NSString *serviceName = service.name ?: result.serviceTypeWithUniqueIdentifier;
-    self.serviceNameLabel.attributedStringValue = [NSAttributedString mm_attributedStringWithString:serviceName font:[NSFont systemFontOfSize:13]];
+    NSString *serviceName = service ? [EZServiceDisplay titleForService:service] : result.serviceTypeWithUniqueIdentifier;
+    NSFont *titleFont = [NSFont systemFontOfSize:12 weight:NSFontWeightSemibold];
+    self.serviceNameLabel.attributedStringValue = [NSAttributedString mm_attributedStringWithString:serviceName font:titleFont];
     self.serviceNameLabel.toolTip = serviceName;
     
     mm_weakify(self);
@@ -496,7 +500,7 @@
         return;
     }
     EZStreamService *service = (EZStreamService *)self.service;
-    NSString *title = service.modelDisplayName;
+    NSString *title = [EZServiceDisplay modelTitleForService:service];
     self.serviceModelButton.title = title;
     self.serviceModelButton.hoverTitle = title;
     self.serviceModelButton.highlightTitle = title;
