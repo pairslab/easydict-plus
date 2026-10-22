@@ -75,6 +75,8 @@ final class HoverTranslationManager: NSObject {
     private var wordLookupEnabled = false
     private var heldModifiers: NSEvent.ModifierFlags = []
     private var wordTapStartedAt: TimeInterval?
+    private var selectionProbe: Task<String?, Never>?
+    private var selectionQueryTask: Task<(), Never>?
     private var state = State.idle
 
     private var paragraphHoldTask: Task<(), Never>?
@@ -159,6 +161,8 @@ final class HoverTranslationManager: NSObject {
     /// Returns to idle, hiding the outline and the card.
     private func reset() {
         cancelWordTap()
+        selectionQueryTask?.cancel()
+        selectionQueryTask = nil
         if state == .tracking {
             endTracking(translatesHighlighted: false)
         }
@@ -196,23 +200,30 @@ final class HoverTranslationManager: NSObject {
         }
 
         if heldModifiers.isEmpty, let startedAt = wordTapStartedAt {
+            // Detach the read before reset so the release can consume it without reading twice.
+            let selection = selectionProbe
+            selectionProbe = nil
             reset()
             let heldMilliseconds = Int((event.timestamp - startedAt) * 1000)
             guard !Self.keyWentDown(since: startedAt) else {
+                selection?.cancel()
                 logInfo("Reading assist: word tap ignored, a key was pressed during the \(heldMilliseconds) ms hold")
                 return
             }
             logInfo("Reading assist: word tap released after \(heldMilliseconds) ms")
-            WordLookupManager.shared.lookUp(at: NSEvent.mouseLocation)
+            translateSelectionOrLookUp(selection, at: NSEvent.mouseLocation)
             return
         }
+        selectionQueryTask?.cancel()
+        selectionQueryTask = nil
         cancelWordTap()
 
         // Only a fresh standalone press can start a gesture, never the tail of a shortcut.
         let startsGesture = isStandalonePress
-        if startsGesture, heldModifiers == .option, wordLookupEnabled {
+        if startsGesture, heldModifiers == .option, wordLookupEnabled || modifierFlag == .option {
             reset()
             wordTapStartedAt = event.timestamp
+            selectionProbe = Task { await SystemUtility.shared.readingSelection() }
             WordLookupManager.shared.dismiss()
         }
         if startsGesture, let modifierFlag, heldModifiers == modifierFlag {
@@ -236,9 +247,15 @@ final class HoverTranslationManager: NSObject {
     private func beginParagraphTrackingAfterHold() {
         paragraphHoldTask = Task { [weak self] in
             await Task.sleep(seconds: Self.paragraphHoldDelay)
+            let selection = await self?.selectionProbe?.value
             guard let self, !Task.isCancelled, wordTapStartedAt != nil,
                   let modifierFlag, heldModifiers == modifierFlag,
                   NSEvent.modifierFlags.intersection(Self.triggerModifiers) == modifierFlag else {
+                return
+            }
+            // A selection remains a selection even when the user holds the key longer.
+            guard selection == nil, let startedAt = wordTapStartedAt,
+                  !Self.keyWentDown(since: startedAt) else {
                 return
             }
             wordTapStartedAt = nil
@@ -250,8 +267,31 @@ final class HoverTranslationManager: NSObject {
 
     private func cancelWordTap() {
         wordTapStartedAt = nil
+        selectionProbe?.cancel()
+        selectionProbe = nil
         paragraphHoldTask?.cancel()
         paragraphHoldTask = nil
+    }
+
+    /// Explicit selections win over pointer lookup, with the same cancellation rules as the gesture.
+    private func translateSelectionOrLookUp(_ selection: Task<String?, Never>?, at location: CGPoint) {
+        let processID = NSWorkspace.shared.frontmostApplication?.processIdentifier
+        selectionQueryTask = Task {
+            let text = await selection?.value
+            guard !Task.isCancelled,
+                  NSWorkspace.shared.frontmostApplication?.processIdentifier == processID else {
+                return
+            }
+            if let text {
+                logInfo("Reading assist: translating explicit selection (\(text.count) characters)")
+                EZWindowManager.shared().translateSelectedText(text)
+            } else {
+                let current = NSEvent.mouseLocation
+                if hypot(current.x - location.x, current.y - location.y) <= 4 {
+                    WordLookupManager.shared.lookUp(at: location)
+                }
+            }
+        }
     }
 
     private func handleMouseMoved() {
@@ -268,6 +308,8 @@ final class HoverTranslationManager: NSObject {
 
     private func handleScroll() {
         cancelWordTap()
+        selectionQueryTask?.cancel()
+        selectionQueryTask = nil
         // Scrolling moves the text away from the outline and the card.
         dismissCard()
         guard state == .tracking else {

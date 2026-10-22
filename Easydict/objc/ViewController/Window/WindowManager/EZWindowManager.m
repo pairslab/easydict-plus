@@ -334,9 +334,12 @@ static EZWindowManager *_instance;
 
      !!!: text may be @"" when no selected text in Chrome, so we need to handle it.
      */
-    queryText = [[queryText ns_removeInvisibleChar] ns_trim];
     BOOL isSelectionQuery = actionType == EZActionTypeShortcutQuery || actionType == EZActionTypeAutoSelectQuery;
-    if (queryText.length == 0) {
+    BOOL preservesSourceStructure = isSelectionQuery || actionType == EZActionTypeInvokeQuery;
+    if (!preservesSourceStructure) {
+        queryText = [[queryText ns_removeInvisibleChar] ns_trim];
+    }
+    if ([queryText ns_trim].length == 0) {
         if (isSelectionQuery) {
             queryText = MyConfiguration.shared.keepPrevResultWhenEmpty ? nil : @"";
         }
@@ -344,10 +347,7 @@ static EZWindowManager *_instance;
     // Remove the excerpt info of the books only when the frontmost app is Books.app
     else {
         queryText = [queryText removeBooksExcerptInfo];
-        // Selected text keeps its structure; only lines that merely wrap a sentence, as in PDFs, are joined.
-        if (isSelectionQuery || actionType == EZActionTypeInvokeQuery) {
-            queryText = [queryText joiningWrappedLines];
-        }
+        // Plain text cannot distinguish PDF wrapping from intentional breaks; preserve the selection.
     }
         
     self.selectedText = queryText;
@@ -789,6 +789,19 @@ static EZWindowManager *_instance;
 }
 
 #pragma mark - Menu Actions, Global Shortcut
+
+- (void)translateSelectedText:(NSString *)text {
+    if (text.ns_trim.length == 0 || Screenshot.shared.isTakingScreenshot) {
+        return;
+    }
+    [self saveFrontmostApplication];
+    self.eventMonitor.actionType = EZActionTypeShortcutQuery;
+    [self.eventMonitor updateSelectedTextEditableState];
+    [self showFloatingWindowType:MyConfiguration.shared.shortcutSelectTranslateWindowType
+                      queryText:text
+                      autoQuery:YES
+                     actionType:EZActionTypeShortcutQuery];
+}
 
 - (void)selectTextTranslate {
     MMLogInfo(@"selectTextTranslate");

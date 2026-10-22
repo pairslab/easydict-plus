@@ -93,10 +93,14 @@ open class QueryModel: NSObject, NSCopying {
     var inputText: String {
         get { inputTextStorage }
         set {
-            if newValue != inputTextStorage {
+            // Selections carry intentional layout, including indentation and list markers.
+            let preservesSourceStructure = actionType == .shortcutQuery
+                || actionType == .autoSelectQuery || actionType == .invokeQuery
+            let normalizedText = preservesSourceStructure ? newValue : newValue.handlingInputText()
+            if newValue != inputTextStorage || normalizedText != queryText {
                 audioURL = nil
                 needDetectLanguage = true
-                queryText = newValue.handlingInputText()
+                queryText = normalizedText
             }
 
             inputTextStorage = newValue

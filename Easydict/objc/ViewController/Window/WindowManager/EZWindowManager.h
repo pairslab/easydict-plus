@@ -44,6 +44,8 @@ NS_ASSUME_NONNULL_BEGIN
 
 - (void)inputTranslate;
 - (void)selectTextTranslate;
+/// Translates an already captured selection without rereading or copying the source application.
+- (void)translateSelectedText:(NSString *)text;
 - (void)showMiniFloatingWindow;
 - (void)snipTranslate;
 - (void)silentScreenshotOCR;
