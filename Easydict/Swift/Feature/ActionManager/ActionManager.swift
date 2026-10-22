@@ -103,11 +103,11 @@ class ActionManager: NSObject {
 
     /// Detect `text` for reading translation.
     ///
-    /// - Returns: The detected query, or nil when the text is already in the user's first language
-    ///   and so needs no translation.
-    func readingQuery(for text: String) async throws -> QueryModel? {
-        let queryModel = try await detectedQuery(for: text)
-        return queryModel.detectedLanguage == Defaults[.firstLanguage] ? nil : queryModel
+    /// - Returns: The detected query, or nil for hovered text already in the user's first language.
+    ///   An explicit selection always translates and retains its source formatting.
+    func readingQuery(for text: String, isSelection: Bool = false) async throws -> QueryModel? {
+        let queryModel = try await detectedQuery(for: text, actionType: isSelection ? .shortcutQuery : .none)
+        return !isSelection && queryModel.detectedLanguage == Defaults[.firstLanguage] ? nil : queryModel
     }
 
     /// Translate a query detected by `readingQuery(for:)`, streaming the accumulated result.
@@ -267,8 +267,9 @@ class ActionManager: NSObject {
     ///
     /// `DetectManager` only fills in languages, so the text is assigned afterwards; without it,
     /// services would receive an empty query.
-    private func detectedQuery(for text: String) async throws -> QueryModel {
+    private func detectedQuery(for text: String, actionType: ActionType = .none) async throws -> QueryModel {
         let queryModel = try await DetectManager().detectText(text)
+        queryModel.actionType = actionType
         queryModel.inputText = text
         return queryModel
     }
@@ -290,6 +291,7 @@ class ActionManager: NSObject {
         }
         let sourceLanguage = queryModel.detectedLanguage
         let targetLanguage = queryModel.queryTargetLanguage
+        let preservesFormatting = queryModel.actionType == .shortcutQuery
         logInfo(
             "\(type) \(queryText.count) characters with \(service.serviceTypeWithUniqueIdentifier()): "
                 + "\(sourceLanguage) -> \(targetLanguage)"
@@ -300,7 +302,8 @@ class ActionManager: NSObject {
             if let error = result.error {
                 throw error
             }
-            return (result.translatedText ?? "").trim()
+            let text = result.translatedText ?? ""
+            return preservesFormatting ? text : text.trim()
         }
 
         logInfo("Using model: \(streamService.model)")
@@ -316,9 +319,11 @@ class ActionManager: NSObject {
         for try await content in try await streamService.contentStreamTranslate(request: request) {
             try Task.checkCancellation()
             accumulatedText += content
-            onUpdate(accumulatedText.filterThinkTagContent().trim())
+            let text = accumulatedText.filterThinkTagContent()
+            onUpdate(preservesFormatting ? text : text.trim())
         }
-        return accumulatedText.filterThinkTagContent().trim()
+        let text = accumulatedText.filterThinkTagContent()
+        return preservesFormatting ? text : text.trim()
     }
 
     // MARK: - Insertion

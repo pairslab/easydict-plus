@@ -283,8 +283,17 @@ final class HoverTranslationManager: NSObject {
                 return
             }
             if let text {
+                guard !Screenshot.shared.isTakingScreenshot else {
+                    return
+                }
                 logInfo("Reading assist: translating explicit selection (\(text.count) characters)")
-                EZWindowManager.shared().translateSelectedText(text)
+                // Selection APIs do not always expose bounds; anchor the shared reading card at the gesture.
+                let source = HoveredParagraph(
+                    text: text,
+                    frame: CGRect(x: location.x, y: location.y - 10, width: 1, height: 20),
+                    processIdentifier: processID ?? 0
+                )
+                translate(source, isSelection: true)
             } else {
                 let current = NSEvent.mouseLocation
                 if hypot(current.x - location.x, current.y - location.y) <= 4 {
@@ -417,7 +426,7 @@ final class HoverTranslationManager: NSObject {
 
     // MARK: Card
 
-    private func translate(_ paragraph: HoveredParagraph) {
+    private func translate(_ paragraph: HoveredParagraph, isSelection: Bool = false) {
         translationTask?.cancel()
         cardParagraph = paragraph
 
@@ -428,17 +437,22 @@ final class HoverTranslationManager: NSObject {
             layout: .reading(width: paragraph.frame.width + 2 * TranslationPreviewView.contentInset)
         )
         let cacheKey = "\(service.serviceTypeWithUniqueIdentifier())\n\(paragraph.text)"
-        if let cachedTranslation = translationCache[cacheKey] {
+        if !isSelection, let cachedTranslation = translationCache[cacheKey] {
             model.text = cachedTranslation
             model.phase = .finished
             present(model, below: paragraph)
             return
         }
+        if isSelection {
+            // Explicit requests show progress and detection failures, including text in the first language.
+            present(model, below: paragraph)
+        }
 
         translationTask = Task { [weak self] in
             do {
-                // Text already in the user's first language needs no card at all.
-                guard let query = try await ActionManager.shared.readingQuery(for: paragraph.text) else {
+                guard let query = try await ActionManager.shared.readingQuery(
+                    for: paragraph.text, isSelection: isSelection
+                ) else {
                     self?.forgetCard(for: paragraph)
                     return
                 }
@@ -446,14 +460,25 @@ final class HoverTranslationManager: NSObject {
                     return
                 }
 
-                present(model, below: paragraph)
+                if !isSelection {
+                    present(model, below: paragraph)
+                }
                 let translation = try await ActionManager.shared.translateForReading(query, service: service) { text in
                     model.text = text
                 }
                 try Task.checkCancellation()
+                guard !translation.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                    throw QueryError(type: .noResult)
+                }
                 model.text = translation
                 model.phase = .finished
-                store(translation, forKey: cacheKey)
+                if isSelection {
+                    if Defaults[.autoCopyFirstTranslatedText] {
+                        translation.copyToPasteboard()
+                    }
+                } else {
+                    store(translation, forKey: cacheKey)
+                }
             } catch is CancellationError {
                 return
             } catch {

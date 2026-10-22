@@ -790,19 +790,6 @@ static EZWindowManager *_instance;
 
 #pragma mark - Menu Actions, Global Shortcut
 
-- (void)translateSelectedText:(NSString *)text {
-    if (text.ns_trim.length == 0 || Screenshot.shared.isTakingScreenshot) {
-        return;
-    }
-    [self saveFrontmostApplication];
-    self.eventMonitor.actionType = EZActionTypeShortcutQuery;
-    [self.eventMonitor updateSelectedTextEditableState];
-    [self showFloatingWindowType:MyConfiguration.shared.shortcutSelectTranslateWindowType
-                      queryText:text
-                      autoQuery:YES
-                     actionType:EZActionTypeShortcutQuery];
-}
-
 - (void)selectTextTranslate {
     MMLogInfo(@"selectTextTranslate");
 

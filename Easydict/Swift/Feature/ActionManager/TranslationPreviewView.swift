@@ -65,10 +65,11 @@ final class TranslationPreviewModel: ObservableObject {
         let width: CGFloat
         let maxLines: Int?
         let fontSize: CGFloat
+        var maximumContentHeight: CGFloat?
 
         /// A card matching the width of the paragraph being read, within comfortable bounds.
         static func reading(width: CGFloat) -> Layout {
-            Layout(width: min(max(width, 320), 620), maxLines: 24, fontSize: 15)
+            Layout(width: min(max(width, 320), 620), maxLines: nil, fontSize: 15, maximumContentHeight: 400)
         }
     }
 
@@ -79,6 +80,8 @@ final class TranslationPreviewModel: ObservableObject {
 
     @Published var text = ""
     @Published var phase = Phase.processing
+    /// Measured by the reading view so short translations stay compact and long ones scroll.
+    @Published var contentHeight: CGFloat = 0
 }
 
 // MARK: - TranslationPreviewView
@@ -107,6 +110,14 @@ struct TranslationPreviewView: View {
     }
 
     // MARK: Private
+
+    private struct ContentHeightKey: PreferenceKey {
+        static var defaultValue: CGFloat { 0 }
+
+        static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+            value = max(value, nextValue())
+        }
+    }
 
     private var cardShape: RoundedRectangle {
         RoundedRectangle(cornerRadius: TranslationCardStyle.cornerRadius, style: .continuous)
@@ -186,15 +197,38 @@ struct TranslationPreviewView: View {
         } else if model.text.isEmpty {
             LoadingLines(widths: [nil, 180])
         } else {
-            Text(model.text)
-                .font(.system(size: model.layout.fontSize))
-                .foregroundStyle(.primary)
-                .lineSpacing(model.layout.fontSize * 0.25)
-                .lineLimit(model.layout.maxLines)
-                // While streaming, keep the newest words visible; once done, read from the start.
-                .truncationMode(model.phase == .processing ? .head : .tail)
-                .fixedSize(horizontal: false, vertical: true)
+            if let maximumHeight = model.layout.maximumContentHeight {
+                ScrollView {
+                    translatedText
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background {
+                            GeometryReader { geometry in
+                                Color.clear.preference(key: ContentHeightKey.self, value: geometry.size.height)
+                            }
+                        }
+                }
+                .frame(height: min(maximumHeight, model.contentHeight))
+                .onPreferenceChange(ContentHeightKey.self) { height in
+                    let roundedHeight = ceil(height)
+                    if model.contentHeight != roundedHeight {
+                        model.contentHeight = roundedHeight
+                    }
+                }
+            } else {
+                translatedText
+            }
         }
+    }
+
+    private var translatedText: some View {
+        Text(model.text)
+            .font(.system(size: model.layout.fontSize))
+            .foregroundStyle(.primary)
+            .lineSpacing(model.layout.fontSize * 0.25)
+            .lineLimit(model.layout.maxLines)
+            // Compact write-back previews show the latest words; reading cards keep the whole text.
+            .truncationMode(model.phase == .processing ? .head : .tail)
+            .fixedSize(horizontal: false, vertical: true)
     }
 
     private func outcomeTitle(_ outcome: TranslationPreviewModel.Outcome) -> LocalizedStringKey {
