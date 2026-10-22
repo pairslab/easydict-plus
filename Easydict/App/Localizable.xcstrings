@@ -12364,37 +12364,37 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Double-click to look up words"
+            "value" : "Tap Option to look up words"
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Doble clic para buscar palabras"
+            "value" : "Pulsa Opción para buscar palabras"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "ダブルクリックで単語を調べる"
+            "value" : "Option キーを軽く押して単語を調べる"
           }
         },
         "sk" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Dvojklikom vyhľadať slovo"
+            "value" : "Krátkym stlačením Option vyhľadať slovo"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "双击查词"
+            "value" : "轻按 Option 查词"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "雙擊查詞"
+            "value" : "輕按 Option 查詞"
           }
         }
       }
@@ -12405,37 +12405,37 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Double-click a foreign word in read-only text, such as web pages or PDFs, to see its pronunciation, meanings, and meaning in context."
+            "value" : "Point at a foreign word in read-only text and briefly press and release Option to see its pronunciation, meanings, and meaning in context. Hold the configured hover key for paragraph translation."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Haz doble clic en una palabra extranjera en texto de solo lectura, como páginas web o PDF, para ver su pronunciación, sus significados y su sentido en contexto."
+            "value" : "Apunta a una palabra extranjera en texto de solo lectura y pulsa y suelta brevemente Opción para ver su pronunciación, sus significados y su sentido en contexto. Mantén pulsada la tecla configurada para traducir el párrafo."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Web ページや PDF など読み取り専用のテキストで外国語の単語をダブルクリックすると、発音記号、意味、文脈での意味を表示します。"
+            "value" : "読み取り専用テキストの外国語の単語にポインタを合わせ、Option キーを短く押して離すと、発音、意味、文脈での意味を表示します。段落を翻訳するには、設定したキーを押し続けます。"
           }
         },
         "sk" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Dvojklikom na cudzie slovo v texte len na čítanie, napríklad na webe alebo v PDF, zobrazíte výslovnosť, významy a význam v kontexte."
+            "value" : "Ukážte na cudzie slovo v texte len na čítanie a krátko stlačte a uvoľnite Option. Zobrazí sa výslovnosť, významy a význam v kontexte. Na preklad odseku podržte nastavený kláves."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "在网页、PDF 等只读内容中双击外文单词，显示音标、释义和语境义"
+            "value" : "鼠标指向只读内容中的外文单词，轻按并松开 Option，显示音标、释义和语境义。持续按住已配置的悬停触发键可翻译段落。"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "在網頁、PDF 等唯讀內容中雙擊外文單字，顯示音標、釋義和語境義"
+            "value" : "將游標指向唯讀內容中的外文單字，輕按並放開 Option，顯示音標、釋義和語境義。持續按住已設定的懸停觸發鍵可翻譯段落。"
           }
         }
       }

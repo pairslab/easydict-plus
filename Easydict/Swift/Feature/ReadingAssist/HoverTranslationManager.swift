@@ -7,6 +7,7 @@
 //
 
 import AppKit
+import Carbon.HIToolbox
 import Combine
 import Defaults
 
@@ -14,7 +15,8 @@ import Defaults
 
 /// Translates the paragraph under the mouse while the trigger modifier is held.
 ///
-/// Holding the modifier alone for a moment starts tracking: the paragraph under the mouse is
+/// Holding the modifier alone starts tracking immediately, unless it also handles word taps.
+/// That shared key must remain held before paragraph tracking starts. The paragraph is
 /// outlined and the outline follows the pointer between paragraphs. Resting on a paragraph,
 /// or releasing the modifier, translates it into a card right below. The card stays after the
 /// release and fades out when the mouse leaves it, the page scrolls, a click or key press
@@ -26,36 +28,38 @@ final class HoverTranslationManager: NSObject {
 
     @objc static let shared = HoverTranslationManager()
 
-    /// Follows the trigger setting; event monitoring runs only while a trigger is chosen.
+    /// Coordinates word taps and paragraph holds without installing competing event monitors.
     @objc
     func start() {
         guard triggerObservation == nil else {
             return
         }
-        triggerObservation = Defaults.publisher(.hoverTranslationTrigger, options: [.initial])
+        triggerObservation = Defaults.publisher(keys: .hoverTranslationTrigger, .enableWordLookup, options: [])
             .receive(on: DispatchQueue.main)
-            .sink { [weak self] change in
-                self?.apply(change.newValue)
+            .sink { [weak self] in
+                self?.apply(Defaults[.hoverTranslationTrigger], wordLookupEnabled: Defaults[.enableWordLookup])
             }
+        // Keys still using their default value need not emit an initial KVO event.
+        apply(Defaults[.hoverTranslationTrigger], wordLookupEnabled: Defaults[.enableWordLookup])
     }
 
     // MARK: Private
 
     private enum State {
         case idle
-        /// The modifier is down; waiting to be sure it is not part of a shortcut.
-        case arming
         /// The modifier is held and the paragraph under the mouse is outlined.
         case tracking
     }
 
-    private enum Timing {
-        /// How long the modifier must be held alone before tracking starts.
-        static let arming: TimeInterval = 0.25
-        /// How long the mouse rests on a paragraph before it is translated.
-        static let dwell: TimeInterval = 0.35
-    }
-
+    /// Show the outline immediately, but let shortcuts and movement cancel before a network request.
+    private static let translationDelay: TimeInterval = 0.15
+    /// Give a standalone tap priority before committing the shared key to paragraph mode.
+    private static let paragraphHoldDelay: TimeInterval = 0.5
+    private static let triggerModifiers: NSEvent.ModifierFlags = [.command, .option, .control, .shift]
+    /// A key pressed this long after the trigger makes the hold a shortcut, not a tap.
+    private static let chordKeyMargin: TimeInterval = 0.02
+    /// Chat messages can change while hovered, so only reuse their geometry briefly.
+    private static let paragraphReuseInterval: TimeInterval = 0.35
     private static let cacheLimit = 64
     /// Margin around the paragraph and its card that still counts as reading them.
     private static let readingMargin: CGFloat = 28
@@ -68,25 +72,57 @@ final class HoverTranslationManager: NSObject {
     private var triggerObservation: AnyCancellable?
     private var activationObservation: NSObjectProtocol?
     private var modifierFlag: NSEvent.ModifierFlags?
+    private var wordLookupEnabled = false
+    private var heldModifiers: NSEvent.ModifierFlags = []
+    private var wordTapStartedAt: TimeInterval?
     private var state = State.idle
 
-    private var armingTask: Task<(), Never>?
+    private var paragraphHoldTask: Task<(), Never>?
     private var dwellTask: Task<(), Never>?
     private var translationTask: Task<(), Never>?
 
     private var isLocating = false
+    private var lookupGeneration = 0
     private var pendingLocation: CGPoint?
     private var highlightedParagraph: HoveredParagraph?
+    private var paragraphLocatedAt: TimeInterval = 0
     private var cardParagraph: HoveredParagraph?
     private var cardModel: TranslationPreviewModel?
 
     private var translationCache: [String: String] = [:]
     private var cacheOrder: [String] = []
 
+    /// The trigger modifier toggled by a modifier key, for the left and right keys alike.
+    private static func triggerModifier(forKeyCode keyCode: UInt16) -> NSEvent.ModifierFlags? {
+        switch Int(keyCode) {
+        case kVK_Option, kVK_RightOption:
+            .option
+        case kVK_Control, kVK_RightControl:
+            .control
+        case kVK_RightShift, kVK_Shift:
+            .shift
+        case kVK_Command, kVK_RightCommand:
+            .command
+        default:
+            nil
+        }
+    }
+
+    /// Whether a key went down at the hardware level after the trigger press at `uptime`.
+    ///
+    /// Shortcuts that hold the trigger, such as Easydict's ⌥A or another app's ⌥Space, are consumed
+    /// before this global monitor sees their key, so without this check the hold would pass for a tap.
+    /// The margin keeps the trigger press itself from ever counting, whatever the event source records.
+    private static func keyWentDown(since uptime: TimeInterval) -> Bool {
+        let secondsSinceKeyDown = CGEventSource.secondsSinceLastEventType(.hidSystemState, eventType: .keyDown)
+        return ProcessInfo.processInfo.systemUptime - secondsSinceKeyDown > uptime + chordKeyMargin
+    }
+
     // MARK: Setup
 
-    private func apply(_ trigger: HoverTranslationTrigger) {
+    private func apply(_ trigger: HoverTranslationTrigger, wordLookupEnabled: Bool) {
         reset()
+        WordLookupManager.shared.dismiss()
         eventMonitor.stop()
         if let activationObservation {
             NSWorkspace.shared.notificationCenter.removeObserver(activationObservation)
@@ -94,7 +130,9 @@ final class HoverTranslationManager: NSObject {
         }
 
         modifierFlag = trigger.modifierFlag
-        guard modifierFlag != nil else {
+        self.wordLookupEnabled = wordLookupEnabled
+        heldModifiers = NSEvent.modifierFlags.intersection(Self.triggerModifiers)
+        guard modifierFlag != nil || wordLookupEnabled else {
             logInfo("Hover translation is off")
             return
         }
@@ -120,7 +158,7 @@ final class HoverTranslationManager: NSObject {
 
     /// Returns to idle, hiding the outline and the card.
     private func reset() {
-        cancelArming()
+        cancelWordTap()
         if state == .tracking {
             endTracking(translatesHighlighted: false)
         }
@@ -133,7 +171,7 @@ final class HoverTranslationManager: NSObject {
     private func handle(_ event: NSEvent) {
         switch event.type {
         case .flagsChanged:
-            handleModifiersChanged(event.modifierFlags)
+            handleModifiersChanged(event)
         case .keyDown:
             // A key press means typing or a shortcut, never a hover lookup.
             reset()
@@ -146,22 +184,42 @@ final class HoverTranslationManager: NSObject {
         }
     }
 
-    private func handleModifiersChanged(_ flags: NSEvent.ModifierFlags) {
-        guard let modifierFlag else {
+    private func handleModifiersChanged(_ event: NSEvent) {
+        let previousModifiers = heldModifiers
+        heldModifiers = event.modifierFlags.intersection(Self.triggerModifiers)
+        // The event names the key that changed, so a fresh standalone press is recognized even when an
+        // earlier release went to an Easydict window, which this global monitor never sees.
+        let pressedModifier = Self.triggerModifier(forKeyCode: event.keyCode)
+        let isStandalonePress = pressedModifier != nil && heldModifiers == pressedModifier
+        guard heldModifiers != previousModifiers || isStandalonePress else {
             return
         }
 
-        let heldModifiers = flags.intersection([.command, .option, .control, .shift])
-        if heldModifiers == modifierFlag {
-            guard state == .idle else {
+        if heldModifiers.isEmpty, let startedAt = wordTapStartedAt {
+            reset()
+            let heldMilliseconds = Int((event.timestamp - startedAt) * 1000)
+            guard !Self.keyWentDown(since: startedAt) else {
+                logInfo("Reading assist: word tap ignored, a key was pressed during the \(heldMilliseconds) ms hold")
                 return
             }
-            state = .arming
-            armingTask = Task { [weak self] in
-                await Task.sleep(seconds: Timing.arming)
-                guard let self, !Task.isCancelled, state == .arming else {
-                    return
-                }
+            logInfo("Reading assist: word tap released after \(heldMilliseconds) ms")
+            WordLookupManager.shared.lookUp(at: NSEvent.mouseLocation)
+            return
+        }
+        cancelWordTap()
+
+        // Only a fresh standalone press can start a gesture, never the tail of a shortcut.
+        let startsGesture = isStandalonePress
+        if startsGesture, heldModifiers == .option, wordLookupEnabled {
+            reset()
+            wordTapStartedAt = event.timestamp
+            WordLookupManager.shared.dismiss()
+        }
+        if startsGesture, let modifierFlag, heldModifiers == modifierFlag {
+            WordLookupManager.shared.dismiss()
+            if wordTapStartedAt != nil {
+                beginParagraphTrackingAfterHold()
+            } else {
                 beginTracking()
             }
             return
@@ -169,10 +227,31 @@ final class HoverTranslationManager: NSObject {
 
         // Released, or another modifier joined it for a shortcut.
         let wasTracking = state == .tracking
-        cancelArming()
         if wasTracking {
             endTracking(translatesHighlighted: heldModifiers.isEmpty)
         }
+    }
+
+    /// Only a key that is still physically held can turn a pending word tap into paragraph mode.
+    private func beginParagraphTrackingAfterHold() {
+        paragraphHoldTask = Task { [weak self] in
+            await Task.sleep(seconds: Self.paragraphHoldDelay)
+            guard let self, !Task.isCancelled, wordTapStartedAt != nil,
+                  let modifierFlag, heldModifiers == modifierFlag,
+                  NSEvent.modifierFlags.intersection(Self.triggerModifiers) == modifierFlag else {
+                return
+            }
+            wordTapStartedAt = nil
+            paragraphHoldTask = nil
+            logInfo("Reading assist: paragraph hold confirmed")
+            beginTracking()
+        }
+    }
+
+    private func cancelWordTap() {
+        wordTapStartedAt = nil
+        paragraphHoldTask?.cancel()
+        paragraphHoldTask = nil
     }
 
     private func handleMouseMoved() {
@@ -180,7 +259,7 @@ final class HoverTranslationManager: NSObject {
         switch state {
         case .tracking:
             locateParagraph(at: location)
-        case .arming, .idle:
+        case .idle:
             if cardParagraph != nil, !isReading(at: location) {
                 dismissCard()
             }
@@ -188,11 +267,14 @@ final class HoverTranslationManager: NSObject {
     }
 
     private func handleScroll() {
+        cancelWordTap()
         // Scrolling moves the text away from the outline and the card.
         dismissCard()
         guard state == .tracking else {
             return
         }
+        lookupGeneration += 1
+        pendingLocation = nil
         highlightedParagraph = nil
         ParagraphHighlightPanel.shared.hide()
         locateParagraph(at: NSEvent.mouseLocation)
@@ -200,15 +282,8 @@ final class HoverTranslationManager: NSObject {
 
     // MARK: Tracking
 
-    private func cancelArming() {
-        armingTask?.cancel()
-        armingTask = nil
-        if state == .arming {
-            state = .idle
-        }
-    }
-
     private func beginTracking() {
+        lookupGeneration += 1
         state = .tracking
         locateParagraph(at: NSEvent.mouseLocation)
     }
@@ -216,6 +291,7 @@ final class HoverTranslationManager: NSObject {
     /// Stops following the mouse; a release translates the outlined paragraph if it has no card yet.
     private func endTracking(translatesHighlighted: Bool) {
         state = .idle
+        lookupGeneration += 1
         dwellTask?.cancel()
         pendingLocation = nil
         if translatesHighlighted, let highlightedParagraph, highlightedParagraph != cardParagraph {
@@ -227,11 +303,20 @@ final class HoverTranslationManager: NSObject {
 
     /// Looks up the paragraph off the main thread; while a lookup runs, only the latest point is kept.
     private func locateParagraph(at location: CGPoint) {
+        // Pointer motion within the same paragraph needs no additional cross-process AX calls.
+        if let highlightedParagraph, highlightedParagraph.frame.contains(location),
+           ProcessInfo.processInfo.systemUptime - paragraphLocatedAt < Self.paragraphReuseInterval {
+            if isLocating {
+                pendingLocation = location
+            }
+            return
+        }
         guard !isLocating else {
             pendingLocation = location
             return
         }
         isLocating = true
+        let generation = lookupGeneration
 
         let screen = NSScreen.screens.first { $0.frame.contains(location) } ?? NSScreen.main
         let locator = ParagraphLocator(
@@ -241,20 +326,30 @@ final class HoverTranslationManager: NSObject {
         locatorQueue.async { [weak self] in
             let paragraph = locator.paragraph(at: location)
             DispatchQueue.main.async {
-                self?.didLocate(paragraph)
+                self?.didLocate(paragraph, generation: generation)
             }
         }
     }
 
-    private func didLocate(_ paragraph: HoveredParagraph?) {
+    private func didLocate(_ paragraph: HoveredParagraph?, generation: Int) {
         isLocating = false
-        if let pendingLocation {
-            // The mouse moved on meanwhile; skip this stale result.
-            self.pendingLocation = nil
-            locateParagraph(at: pendingLocation)
+        let latestLocation = pendingLocation
+        pendingLocation = nil
+        guard state == .tracking else {
             return
         }
-        guard state == .tracking, paragraph != highlightedParagraph else {
+        guard generation == lookupGeneration else {
+            // A scroll or a new hold invalidates geometry obtained before that transition.
+            locateParagraph(at: latestLocation ?? NSEvent.mouseLocation)
+            return
+        }
+        if let latestLocation, paragraph?.frame.contains(latestLocation) != true {
+            locateParagraph(at: latestLocation)
+            return
+        }
+        // A result remains useful when the pointer moved within the paragraph while AX was busy.
+        paragraphLocatedAt = ProcessInfo.processInfo.systemUptime
+        guard paragraph != highlightedParagraph else {
             return
         }
 
@@ -270,7 +365,7 @@ final class HoverTranslationManager: NSObject {
             return
         }
         dwellTask = Task { [weak self] in
-            await Task.sleep(seconds: Timing.dwell)
+            await Task.sleep(seconds: Self.translationDelay)
             guard let self, !Task.isCancelled, state == .tracking, highlightedParagraph == paragraph else {
                 return
             }

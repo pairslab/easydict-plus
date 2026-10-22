@@ -11,10 +11,10 @@ import Defaults
 
 // MARK: - WordLookupManager
 
-/// Shows a dictionary card for a foreign word the user double-clicks in read-only text.
+/// Shows a dictionary card for a foreign word under the pointer after a standalone modifier tap.
 ///
-/// `EventMonitor` hands over double-clicked selections that `accepts(_:)` allows, in place of
-/// the query icon. The card loads dictionary senses and the meaning in context side by side,
+/// The reading-assist trigger coordinator requests a lookup without changing the selection.
+/// The card loads dictionary senses and the meaning in context side by side,
 /// and fades out when the mouse leaves the word, or on a click, key press, scroll, or app switch.
 @MainActor
 final class WordLookupManager {
@@ -26,10 +26,9 @@ final class WordLookupManager {
 
     static let shared = WordLookupManager()
 
-    /// Whether a double-clicked selection should open the dictionary card instead of the query icon.
+    /// Whether text is a supported dictionary word.
     ///
-    /// Only single words in a Latin script qualify, so text in the user's own language, phrases,
-    /// and code keep the regular behavior.
+    /// Only single words in a Latin script qualify; phrases and other scripts are ignored.
     nonisolated static func accepts(_ text: String) -> Bool {
         guard Defaults[.enableWordLookup], text.count <= maximumWordLength else {
             return false
@@ -37,23 +36,36 @@ final class WordLookupManager {
         return text.range(of: #"^\p{Latin}[\p{Latin}'’-]*$"#, options: .regularExpression) != nil
     }
 
-    /// Looks up `word`, which was just double-clicked at `mouseLocation` (Cocoa screen coordinates).
-    func lookUp(_ word: String, near mouseLocation: CGPoint) {
+    /// Reads the word at `mouseLocation` (Cocoa screen coordinates), without selecting or copying it.
+    func lookUp(at mouseLocation: CGPoint) {
         dismiss()
-        let model = WordLookupModel(word: word)
-        presentedModel = model
+        guard Defaults[.enableWordLookup] else {
+            return
+        }
+        let generation = lookupGeneration
+        startDismissMonitoring()
 
         let screen = NSScreen.screens.first { $0.frame.contains(mouseLocation) } ?? NSScreen.main
         let locator = WordLocator(
             coordinateSpace: AXCoordinateSpace(primaryScreenMaxY: NSScreen.screens.first?.frame.maxY ?? 0),
             maximumParagraphHeight: (screen?.frame.height ?? 0) * 0.75
         )
-        locatorQueue.async { [weak self] in
-            let located = locator.locate(word, near: mouseLocation)
-            DispatchQueue.main.async {
-                self?.present(model, located: located, mouseLocation: mouseLocation)
-            }
+        locate(at: mouseLocation, using: locator, generation: generation, deadline: .now() + Self.geometryWait)
+    }
+
+    /// Cancels both pending geometry lookup and visible dictionary requests.
+    func dismiss() {
+        lookupGeneration += 1
+        contextWorkItem?.cancel()
+        contextWorkItem = nil
+        loadingTasks.forEach { $0.cancel() }
+        loadingTasks.removeAll()
+        stopDismissMonitoring()
+        guard presentedModel != nil else {
+            return
         }
+        presentedModel = nil
+        WordLookupPanel.shared.dismiss()
     }
 
     // MARK: Private
@@ -61,25 +73,88 @@ final class WordLookupManager {
     private nonisolated static let maximumWordLength = 40
     /// Margin around the word and its card that still counts as reading them.
     private static let readingMargin: CGFloat = 30
+    /// Longest wait for an app building text geometry; see `WebTextGeometry`.
+    private static let geometryWait: TimeInterval = 3.5
+    private static let geometryRetryInterval: TimeInterval = 0.25
 
     private let eventMonitor = EventMonitorEngine()
     private let locatorQueue = DispatchQueue(label: "com.izual.Easydict.WordLookup", qos: .userInitiated)
+    private let contextQueue = DispatchQueue(label: "com.izual.Easydict.WordContext", qos: .userInitiated)
 
     private var presentedModel: WordLookupModel?
+    private var lookupGeneration = 0
     private var wordFrame = CGRect.zero
     private var loadingTasks: [Task<(), Never>] = []
+    private var contextWorkItem: DispatchWorkItem?
     private var activationObservation: NSObjectProtocol?
 
-    private func present(_ model: WordLookupModel, located: LocatedWord, mouseLocation: CGPoint) {
+    private func locate(
+        at mouseLocation: CGPoint,
+        using locator: WordLocator,
+        generation: Int,
+        deadline: DispatchTime
+    ) {
+        locatorQueue.async { [weak self] in
+            let location = locator.locate(at: mouseLocation)
+            DispatchQueue.main.async {
+                guard let self, self.lookupGeneration == generation else {
+                    return
+                }
+                switch location {
+                case let .word(located):
+                    self.show(located, at: mouseLocation, using: locator)
+                case .loadingGeometry where DispatchTime.now() < deadline && self.isStill(at: mouseLocation):
+                    DispatchQueue.main.asyncAfter(deadline: .now() + Self.geometryRetryInterval) { [weak self] in
+                        guard let self, lookupGeneration == generation else {
+                            return
+                        }
+                        locate(at: mouseLocation, using: locator, generation: generation, deadline: deadline)
+                    }
+                case .loadingGeometry:
+                    let reason = DispatchTime.now() < deadline ? "pointer moved" : "deadline passed"
+                    logInfo("Reading assist: stopped waiting for web text geometry, \(reason)")
+                    self.dismiss()
+                case .unavailable:
+                    logInfo("Reading assist: no supported word at pointer")
+                    self.dismiss()
+                }
+            }
+        }
+    }
+
+    private func show(_ located: LocatedWord, at mouseLocation: CGPoint, using locator: WordLocator) {
+        guard Self.accepts(located.word) else {
+            logInfo("Reading assist: no supported word at pointer")
+            dismiss()
+            return
+        }
+        guard located.frame.insetBy(dx: -Self.readingMargin, dy: -Self.readingMargin)
+            .contains(NSEvent.mouseLocation) else {
+            logInfo("Reading assist: pointer left the located word before presentation")
+            dismiss()
+            return
+        }
+        logInfo("Reading assist: presenting word card before context lookup")
+        let model = WordLookupModel(word: located.word)
+        presentedModel = model
+        present(model, located: located)
+        loadContext(for: model, located: located, at: mouseLocation, using: locator)
+    }
+
+    /// Whether the pointer is still where the lookup started, so a retry reads the same word.
+    private func isStill(at mouseLocation: CGPoint) -> Bool {
+        CGRect(origin: mouseLocation, size: .zero)
+            .insetBy(dx: -Self.readingMargin, dy: -Self.readingMargin)
+            .contains(NSEvent.mouseLocation)
+    }
+
+    private func present(_ model: WordLookupModel, located: LocatedWord) {
         guard presentedModel === model else {
             return
         }
 
-        // Without selection bounds, point at a word-sized area under the mouse.
-        wordFrame = located.frame ?? CGRect(x: mouseLocation.x - 20, y: mouseLocation.y - 9, width: 40, height: 18)
-        model.hasContext = located.sentence != nil
+        wordFrame = located.frame
         WordLookupPanel.shared.present(model, wordFrame: wordFrame)
-        startDismissMonitoring()
 
         loadingTasks.append(Task {
             let entry = await WordLookupLoader.dictionaryEntry(for: model.word)
@@ -90,10 +165,35 @@ final class WordLookupManager {
             model.senses = entry.senses
             model.isLoadingDictionary = false
         })
+    }
 
-        guard let sentence = located.sentence else {
-            return
+    private func loadContext(
+        for model: WordLookupModel,
+        located: LocatedWord,
+        at point: CGPoint,
+        using locator: WordLocator
+    ) {
+        let workItem = DispatchWorkItem { [weak self] in
+            let sentence = locator.context(for: located, at: point)
+            DispatchQueue.main.async {
+                guard let self, self.presentedModel === model else {
+                    return
+                }
+                self.contextWorkItem = nil
+                logInfo("Reading assist: word context available: \(sentence != nil)")
+                guard let sentence else {
+                    model.hasContext = false
+                    model.isLoadingContext = false
+                    return
+                }
+                self.loadContextualMeaning(for: model, sentence: sentence)
+            }
         }
+        contextWorkItem = workItem
+        contextQueue.async(execute: workItem)
+    }
+
+    private func loadContextualMeaning(for model: WordLookupModel, sentence: String) {
         loadingTasks.append(Task {
             do {
                 model.contextualMeaning = try await WordLookupLoader.contextualMeaning(of: model.word, in: sentence) {
@@ -108,28 +208,23 @@ final class WordLookupManager {
         })
     }
 
-    private func dismiss() {
-        loadingTasks.forEach { $0.cancel() }
-        loadingTasks.removeAll()
-        stopDismissMonitoring()
-        guard presentedModel != nil else {
-            return
-        }
-        presentedModel = nil
-        WordLookupPanel.shared.dismiss()
-    }
-
     // MARK: Dismissal
 
     private func startDismissMonitoring() {
+        let generation = lookupGeneration
         let mask: NSEvent.EventTypeMask = [
             .mouseMoved, .leftMouseDown, .rightMouseDown, .otherMouseDown, .keyDown, .scrollWheel,
         ]
         eventMonitor.monitor(type: .global, mask: mask) { [weak self] event in
-            guard let self else {
+            guard let self, lookupGeneration == generation else {
+                return
+            }
+            // While locating, validate movement against the real word bounds when they arrive.
+            if event.type == .mouseMoved, presentedModel == nil {
                 return
             }
             if event.type != .mouseMoved || !isReading(at: NSEvent.mouseLocation) {
+                logInfo("Reading assist: word lookup dismissed by event \(event.type.rawValue)")
                 dismiss()
             }
         }
@@ -139,7 +234,11 @@ final class WordLookupManager {
             queue: .main
         ) { [weak self] _ in
             Task { @MainActor in
-                self?.dismiss()
+                guard let self, self.lookupGeneration == generation else {
+                    return
+                }
+                logInfo("Reading assist: word lookup dismissed by app activation")
+                self.dismiss()
             }
         }
     }

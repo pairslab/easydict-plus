@@ -24,8 +24,9 @@ struct HoveredParagraph: Equatable, Sendable {
 /// Finds the paragraph under a screen point through the Accessibility API.
 ///
 /// Web content (Safari, Chromium and Electron apps) is read with the text-marker API that
-/// VoiceOver uses, falling back to the nearest block element; native text views are split by
-/// line breaks around the character under the point; other elements contribute their own text.
+/// VoiceOver uses, falling back to the paragraph joined from neighboring text runs; native text
+/// views are split by line breaks around the character under the point; other elements contribute
+/// their own text.
 /// Every lookup waits on the target app, so run it off the main thread.
 struct ParagraphLocator: Sendable {
     // MARK: Internal
@@ -79,7 +80,8 @@ struct ParagraphLocator: Sendable {
 
     /// The paragraph from WebKit or Chromium text markers, asked on the element or its ancestors.
     private func webParagraph(from element: AXUIElement, at point: CGPoint) -> (text: String, axFrame: CGRect)? {
-        for node in AXElementReader.ancestry(of: element, limit: Self.maximumDepth) {
+        var node = element
+        for depth in 0 ..< Self.maximumDepth {
             if let marker = AXElementReader.parameterizedAttribute(
                 node,
                 "AXTextMarkerForPosition",
@@ -99,26 +101,29 @@ struct ParagraphLocator: Sendable {
             if AXElementReader.role(of: node) == "AXWebArea" {
                 return nil
             }
+            // Avoid fetching every ancestor before trying the element already under the pointer.
+            guard depth + 1 < Self.maximumDepth, let parent = AXElementReader.parent(of: node) else {
+                return nil
+            }
+            node = parent
         }
         return nil
     }
 
-    /// The joined text of the block that holds a static text run, for engines without paragraph markers.
+    /// The paragraph continuing around a static text run, for engines without paragraph markers.
+    ///
+    /// Joined by layout rather than as the whole block, which in a PDF text layer is a page.
     private func webBlock(containing element: AXUIElement) -> (text: String, axFrame: CGRect)? {
         guard AXElementReader.role(of: element) == kAXStaticTextRole,
-              var block = AXElementReader.parent(of: element)
+              let lineHeight = TextRunReader.lineHeight(of: element),
+              let paragraph = TextRunReader.paragraph(
+                  around: element, lineHeight: lineHeight, limit: Self.maximumTextLength / 2
+              )
         else {
             return nil
         }
-        // Climb out of inline wrappers such as links to reach the paragraph-level element.
-        while AXElementReader.role(of: block) == "AXLink", let next = AXElementReader.parent(of: block) {
-            block = next
-        }
-        guard AXElementReader.role(of: block) != "AXWebArea", let frame = AXElementReader.frame(of: block) else {
-            return nil
-        }
-        let text = staticTexts(in: block).joined()
-        return text.isEmpty ? nil : (text, frame)
+        let joined = paragraph.joined
+        return joined.text.isEmpty ? nil : (joined.text, joined.frame)
     }
 
     /// The paragraph around the character under the point in a native text view.
@@ -182,15 +187,5 @@ struct ParagraphLocator: Sendable {
             frame: coordinateSpace.cocoaRect(fromAX: axFrame),
             processIdentifier: processIdentifier
         )
-    }
-
-    private func staticTexts(in element: AXUIElement, depth: Int = 0) -> [String] {
-        guard depth < Self.maximumDepth else {
-            return []
-        }
-        if AXElementReader.role(of: element) == kAXStaticTextRole {
-            return AXElementReader.string(element, kAXValueAttribute).map { [$0] } ?? []
-        }
-        return AXElementReader.children(of: element).flatMap { staticTexts(in: $0, depth: depth + 1) }
     }
 }

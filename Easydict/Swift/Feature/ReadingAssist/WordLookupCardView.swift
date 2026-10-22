@@ -11,7 +11,7 @@ import SwiftUI
 
 // MARK: - WordLookupModel
 
-/// Observable content of the dictionary card shown for a double-clicked word.
+/// Observable content of the dictionary card shown for the word under the pointer.
 @MainActor
 final class WordLookupModel: ObservableObject {
     // MARK: Lifecycle

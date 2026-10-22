@@ -236,7 +236,7 @@ extern CFArrayRef DCSCopyRecordsForSearchString(DCSDictionaryRef, CFStringRef, u
     static dispatch_once_t onceToken;
     dispatch_once(&onceToken, ^{
         NSMutableArray *mutableActiveDictionaries = [NSMutableArray array];
-        NSArray *activeDictionaries = (__bridge_transfer NSArray *)DCSGetActiveDictionaries();
+        NSArray *activeDictionaries = (__bridge NSArray *)DCSGetActiveDictionaries();
         for (id dictionary in activeDictionaries) {
             TTTDictionary *activeDictionary = [[TTTDictionary alloc] initWithDictionaryRef:(__bridge DCSDictionaryRef)dictionary];
             if (activeDictionary) {
@@ -346,11 +346,11 @@ extern CFArrayRef DCSCopyRecordsForSearchString(DCSDictionaryRef, CFStringRef, u
     }
     
     self.dictionary = dictionary;
-    self.name = (__bridge_transfer NSString *)DCSDictionaryGetName(self.dictionary);
-    self.shortName = (__bridge_transfer NSString *)DCSDictionaryGetShortName(self.dictionary);
+    self.name = (__bridge NSString *)DCSDictionaryGetName(self.dictionary);
+    self.shortName = (__bridge NSString *)DCSDictionaryGetShortName(self.dictionary);
     
-    self.identifier = (__bridge_transfer NSString *)(DCSDictionaryGetIdentifier(dictionary));
-    self.dictionaryURL = (__bridge_transfer NSURL *)DCSDictionaryGetURL(dictionary);
+    self.identifier = (__bridge NSString *)(DCSDictionaryGetIdentifier(dictionary));
+    self.dictionaryURL = (__bridge NSURL *)DCSDictionaryGetURL(dictionary);
     
     return self;
 }
