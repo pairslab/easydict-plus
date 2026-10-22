@@ -1,6 +1,6 @@
 # 轻按修饰键查词
 
-- 状态：completed
+- 状态：active
 - 创建日期：2026-10-21
 - 负责人：Codex
 - 关联 Issue/PR：https://github.com/pairslab/easydict-plus/pull/1
@@ -92,3 +92,49 @@
 - 已备份并安装，严格签名校验、原配置保留、辅助功能开关及启动日志检查通过；未再出现旧签名不匹配日志。
 - 用户在 AgentsDock 中实测后确认可用。运行日志确认轻按后显示单词卡片并取得语境，持续按住进入段落模式；静态文本取词示例使用 4–7 次边界查询。
 - 最终源码与已构建、审查的冻结摘要一致。没有进行跨应用完整回归或网络翻译耗时测量；不把取词耗时等同于翻译完成耗时。
+
+## 网页取词回归
+
+- 用户反馈在 Edge 的 alphaXiv 网页中完全无反应；只允许后台操作，并要求保留原应用图标。
+- 本轮基线为干净的 `f2e16a3c09eab3dcda470d0e8b70073fa9d24f7f`；不修改其他工作树。
+- 日志确认短按事件已收到，多次失败的祖先链到第 8 层仍是网页容器；两次成功定位后未显示词卡，现有日志不能区分取消原因。
+- 扩展有界网页祖先遍历；先显示已定位单词，再异步补充语境，避免语境读取阻塞词卡；为取消分支补充不含文本的诊断。
+- 保留只读文本、拉丁单词过滤和过期结果取消；不修改浏览器 JavaScript 权限，不新增测试。
+- [x] 实现、Release arm64 构建和两个 Swift 文件严格 lint；差异格式检查通过。
+- [x] Review、原图标保留及安装启动检查。
+- [x] 更新后辅助功能授权恢复。
+- [x] 网页取词几何与崩溃修复；Chromium 页面定位以应用内读取验证，alphaXiv 与可见卡片待用户实测（见下节）。
+
+- Review：冻结两份源码摘要，核对单词先展示、独立语境队列、排队任务取消、模型身份/查询代次隔离以及真实单词边界复验；未发现新的确定缺陷。未新增测试，现有测试没有该路径覆盖。
+- 语境仍使用原段落读取方式，不用截断的 inline 文字替代整句；已取消查询的语境结果不能开始新的翻译请求。
+- 用户随后明确要求重启，并强调修复网页取词共性问题。实现不包含站点域名、URL 或浏览器名称特判。
+- 已备份现有应用与配置，安装带原始内嵌图标的构建并在后台启动。安装副本严格签名校验通过，运行程序与构建产物摘要一致，相关取词配置保留。
+- 启动后的系统日志确认旧辅助功能授权与新签名不匹配。用户允许短暂切换系统设置并完成 Touch ID；仅重新打开旧开关仍失败，移除旧记录并添加当前安装的应用后恢复。
+- 再次后台重启，系统日志确认辅助功能和按键监听访问均获准，未再出现签名不匹配；设置开关在重启后保持开启，应用启动日志确认阅读辅助监听注册。
+- 构建与静态检查不能替代实际网页验收；当前仍未确认更新后的跨网页交互表现。
+
+## Chromium 文字几何与词典崩溃
+
+- 本轮由 Claude Code（Claude Opus 5.5）接手，基线仍为 `f2e16a3c09eab3dcda470d0e8b70073fa9d24f7f` 及上一轮未提交改动。
+- 日志显示 `editable text ignored, role: AXList`：可编辑判断把任意可设置 `AXValue` 的祖先视为输入框。改为仅文本输入角色（文本框、文本区域、组合框）的可设置值或 `AXEditable` 才算编辑。
+- 重新签名使辅助功能授权失效后，`Reading assist` 日志只有“无受支持单词”，没有定位输出，对应命中测试本身失败。tccd 记录确认旧记录仍保存旧代码要求；用户同意后，使用本机自签名身份签名，仅对本应用执行 `tccutil reset Accessibility`，再由用户重新授权。之后的构建保持同一指定要求，授权不再失效。
+- 授权恢复后，Edge 与 AgentsDock（Electron）的静态文本 `AXFrame` 包含指针，但 `AXBoundsForRange` 返回 `(0, 34, 0, 0)` 空矩形；另有容器只有 1 px 高的子节点，导致自上而下的裁剪中断。
+- 依据 Chromium 源码：非 VoiceOver 客户端读取 `accessibilityRole` 只开启 `kAXModeBasic`，不含 `kInlineTextBoxes`；`AXEnhancedUserInterface` 经两秒防抖开启 `kAXModeComplete`。Electron 为第三方工具提供 `AXManualAccessibility`。
+- 静态文本范围返回空矩形且元素自身框架非空、并位于 `AXWebArea` 内时，向该进程请求完整文字几何：先设 `AXManualAccessibility`，失败时设 `AXEnhancedUserInterface`；同一进程 10 秒内至多一次。原生应用不发送该请求。
+- 定位结果区分已找到、几何加载中与不可用；加载中时每 0.25 秒重试，最长 3.5 秒，查询代次变化或指针移开 30 pt 即停止，并记录停止原因。没有无条件延迟。
+- 指针命中容器时向下有界搜索（最多 128 个节点），只按框架裁剪非塌缩节点；塌缩包装节点仅向下穿过，不当作文本读取。
+- 崩溃日志（19:48、01:25）均为 `DCSCopyTextDefinition` 段错误，来自 Youdao 无条目时的系统词典回退。根因是 `TTTDictionary.m` 对 `DCSGetActiveDictionaries` 与 `DCSDictionaryGet*` 的 Get 规则结果使用 `__bridge_transfer`，多释放了 DictionaryServices 仍持有的对象。独立程序按相同方式多释放后，下一次 `DCSCopyTextDefinition` 在同一帧崩溃；所有权正确时正常。五处改为 `__bridge`，属性为 `copy`/`strong`，各自保留引用。
+- 参考：[Chromium `chrome_browser_application_mac.mm`](https://chromium.googlesource.com/chromium/src/+/main/chrome/browser/chrome_browser_application_mac.mm)、[Chromium `ax_mode.h`](https://chromium.googlesource.com/chromium/src/+/main/ui/accessibility/ax_mode.h)、[Electron 辅助功能文档](https://www.electronjs.org/docs/latest/tutorial/accessibility)。
+
+### 验证
+
+- Release arm64 构建、`ReadingAssist` 目录 SwiftLint strict 与 `git diff --check` 通过。
+- 用临时的应用内诊断（Easydict 自身读取其他应用，不接管指针或键盘）验证；诊断已在交付前删除，偏好项已清除。
+  - AgentsDock 同一进程：00:56 前范围矩形为空；设置 `AXManualAccessibility` 返回成功；01:16 起样本均为有效矩形。
+  - AgentsDock 前台窗口经真实命中测试：多轮 5/5 定位到同一单词，含命中容器后向下搜索的样本；词典释义均非空。
+  - Edge（前台页面为 agentsdock.net，窗口被遮挡）：5/5 定位正确，但从单词父容器开始搜索，只验证遍历，不含真实命中测试。Edge 自 10 月 13 日运行且已处于完整模式，未观察到切换前后对比。
+  - 词典：Edge 一个样本 Youdao 与系统词典均无条目，释义为空但未崩溃；修复前同一回退路径崩溃。
+  - 隐藏文本（1 px 框架、屏幕外单词范围）不能指向，不计入样本。
+- 安装保留原内嵌图标、`Info.plist`、权限声明与配置；指定要求未变，tccd 确认授权有效。
+- Review：复核重试代次与取消、塌缩节点穿过、空矩形判定、完整模式请求的网页范围限制和所有权修改；补充网页范围限制并删除失去调用者的 `ancestry(of:)`。
+- 未验证：alphaXiv 页面、Edge 前台窗口的真实命中、物理 Option 轻按与可见卡片。`DCSCopyAvailableDictionaries` 路径中 `assign` 字典引用可能悬空，但当前代码未调用，本轮不改。

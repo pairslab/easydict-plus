@@ -65,13 +65,9 @@ enum AXElementReader {
         attribute(element, kAXChildrenAttribute) as? [AXUIElement] ?? []
     }
 
-    /// The element and its ancestors, nearest first, up to `limit` levels.
-    static func ancestry(of element: AXUIElement, limit: Int = 8) -> [AXUIElement] {
-        var chain = [element]
-        while chain.count < limit, let next = parent(of: chain[chain.count - 1]) {
-            chain.append(next)
-        }
-        return chain
+    @discardableResult
+    static func setAttribute(_ element: AXUIElement, _ name: String, _ value: CFTypeRef) -> AXError {
+        AXUIElementSetAttributeValue(element, name as CFString, value)
     }
 
     static func isSettable(_ element: AXUIElement, _ name: String) -> Bool {
@@ -104,6 +100,54 @@ enum AXElementReader {
         var range = range
         return AXValueCreate(.cfRange, &range)!
     }
+}
+
+// MARK: - WebTextGeometry
+
+/// Asks a Chromium-based app to build the per-character geometry behind `AXBoundsForRange`.
+///
+/// Chromium gives tools that only read it basic accessibility, which omits inline text boxes,
+/// so range bounds come back as empty rects. Electron switches to complete accessibility for
+/// `AXManualAccessibility`; Chrome rejects that attribute and switches for
+/// `AXEnhancedUserInterface` after a two-second debounce.
+final class WebTextGeometry: @unchecked Sendable {
+    // MARK: Internal
+
+    static let shared = WebTextGeometry()
+
+    /// Requests geometry from the app at most once per interval.
+    /// Returns whether a recent request may still be taking effect, so a retry can help.
+    func request(for processIdentifier: pid_t) -> Bool {
+        let now = Date()
+        lock.lock()
+        if let requested = requestDates[processIdentifier],
+           now.timeIntervalSince(requested) < Self.requestInterval {
+            lock.unlock()
+            return now.timeIntervalSince(requested) < Self.settleTime
+        }
+        requestDates[processIdentifier] = now
+        lock.unlock()
+
+        let app = AXUIElementCreateApplication(processIdentifier)
+        let manual = AXElementReader.setAttribute(app, "AXManualAccessibility", kCFBooleanTrue)
+        let enhanced = manual == .success
+            ? nil
+            : AXElementReader.setAttribute(app, "AXEnhancedUserInterface", kCFBooleanTrue)
+        logInfo(
+            "Reading assist: requested web text geometry, manual: \(manual.rawValue), "
+                + "enhanced: \(enhanced.map { "\($0.rawValue)" } ?? "skipped")"
+        )
+        return true
+    }
+
+    // MARK: Private
+
+    /// Covers Chrome's debounce and the renderer rebuilding its tree.
+    private static let settleTime: TimeInterval = 3
+    private static let requestInterval: TimeInterval = 10
+
+    private let lock = NSLock()
+    private var requestDates: [pid_t: Date] = [:]
 }
 
 // MARK: - AXCoordinateSpace
