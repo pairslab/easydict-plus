@@ -7,6 +7,7 @@
 //
 
 import AppKit
+import Carbon.HIToolbox
 import Combine
 import Defaults
 
@@ -55,6 +56,8 @@ final class HoverTranslationManager: NSObject {
     /// Give a standalone tap priority before committing the shared key to paragraph mode.
     private static let paragraphHoldDelay: TimeInterval = 0.5
     private static let triggerModifiers: NSEvent.ModifierFlags = [.command, .option, .control, .shift]
+    /// A key pressed this long after the trigger makes the hold a shortcut, not a tap.
+    private static let chordKeyMargin: TimeInterval = 0.02
     /// Chat messages can change while hovered, so only reuse their geometry briefly.
     private static let paragraphReuseInterval: TimeInterval = 0.35
     private static let cacheLimit = 64
@@ -88,6 +91,32 @@ final class HoverTranslationManager: NSObject {
 
     private var translationCache: [String: String] = [:]
     private var cacheOrder: [String] = []
+
+    /// The trigger modifier toggled by a modifier key, for the left and right keys alike.
+    private static func triggerModifier(forKeyCode keyCode: UInt16) -> NSEvent.ModifierFlags? {
+        switch Int(keyCode) {
+        case kVK_Option, kVK_RightOption:
+            .option
+        case kVK_Control, kVK_RightControl:
+            .control
+        case kVK_RightShift, kVK_Shift:
+            .shift
+        case kVK_Command, kVK_RightCommand:
+            .command
+        default:
+            nil
+        }
+    }
+
+    /// Whether a key went down at the hardware level after the trigger press at `uptime`.
+    ///
+    /// Shortcuts that hold the trigger, such as Easydict's ⌥A or another app's ⌥Space, are consumed
+    /// before this global monitor sees their key, so without this check the hold would pass for a tap.
+    /// The margin keeps the trigger press itself from ever counting, whatever the event source records.
+    private static func keyWentDown(since uptime: TimeInterval) -> Bool {
+        let secondsSinceKeyDown = CGEventSource.secondsSinceLastEventType(.hidSystemState, eventType: .keyDown)
+        return ProcessInfo.processInfo.systemUptime - secondsSinceKeyDown > uptime + chordKeyMargin
+    }
 
     // MARK: Setup
 
@@ -158,20 +187,29 @@ final class HoverTranslationManager: NSObject {
     private func handleModifiersChanged(_ event: NSEvent) {
         let previousModifiers = heldModifiers
         heldModifiers = event.modifierFlags.intersection(Self.triggerModifiers)
-        guard heldModifiers != previousModifiers else {
+        // The event names the key that changed, so a fresh standalone press is recognized even when an
+        // earlier release went to an Easydict window, which this global monitor never sees.
+        let pressedModifier = Self.triggerModifier(forKeyCode: event.keyCode)
+        let isStandalonePress = pressedModifier != nil && heldModifiers == pressedModifier
+        guard heldModifiers != previousModifiers || isStandalonePress else {
             return
         }
 
         if heldModifiers.isEmpty, let startedAt = wordTapStartedAt {
             reset()
-            logInfo("Reading assist: word tap released after \(Int((event.timestamp - startedAt) * 1000)) ms")
+            let heldMilliseconds = Int((event.timestamp - startedAt) * 1000)
+            guard !Self.keyWentDown(since: startedAt) else {
+                logInfo("Reading assist: word tap ignored, a key was pressed during the \(heldMilliseconds) ms hold")
+                return
+            }
+            logInfo("Reading assist: word tap released after \(heldMilliseconds) ms")
             WordLookupManager.shared.lookUp(at: NSEvent.mouseLocation)
             return
         }
         cancelWordTap()
 
         // Only a fresh standalone press can start a gesture, never the tail of a shortcut.
-        let startsGesture = previousModifiers.isEmpty
+        let startsGesture = isStandalonePress
         if startsGesture, heldModifiers == .option, wordLookupEnabled {
             reset()
             wordTapStartedAt = event.timestamp

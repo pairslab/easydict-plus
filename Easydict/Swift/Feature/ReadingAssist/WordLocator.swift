@@ -33,6 +33,8 @@ enum WordLocation: Sendable {
 /// What one lookup observed, used to decide whether waiting for the app can help.
 private final class LocateTrace {
     var sawEmptyRangeBounds = false
+    /// Any static text was reached; without it, a web area has not built its tree under the pointer.
+    var sawStaticText = false
 }
 
 // MARK: - WordLocator
@@ -77,6 +79,8 @@ struct WordLocator: Sendable {
     private static let maximumAncestorDepth = 32
     private static let maximumDescendantVisits = 128
     private static let hitSlop: CGFloat = 2
+    /// How far a pointer resting between words or on punctuation may be from the word it reads.
+    private static let wordSnapDistance: CGFloat = 5
     /// Search fields are text fields with a search subrole; Safari exposes some web search boxes as combo boxes.
     private static let textInputRoles: Set<String> = [kAXTextFieldRole, kAXTextAreaRole, kAXComboBoxRole]
 
@@ -124,14 +128,23 @@ struct WordLocator: Sendable {
         let roles = ancestors.compactMap { AXElementReader.role(of: $0) }
         logInfo("Reading assist: unsupported word geometry, roles: \(roles.joined(separator: "/"))")
         // Only web content builds geometry on request; native apps keep their accessibility mode.
-        guard trace.sawEmptyRangeBounds, roles.contains("AXWebArea") else {
+        guard roles.contains("AXWebArea") else {
             return .unavailable
         }
-        if WebTextGeometry.shared.request(for: processIdentifier) {
+        // Text without range bounds lacks inline text boxes; no text at all means a basic Electron tree.
+        let need: WebTextGeometry.Need
+        if trace.sawEmptyRangeBounds {
+            need = .inlineTextBoxes
+        } else if !trace.sawStaticText {
+            need = .textTree
+        } else {
+            return .unavailable
+        }
+        if WebTextGeometry.shared.request(need, for: processIdentifier) {
             logInfo("Reading assist: waiting for web text geometry")
             return .loadingGeometry
         }
-        logInfo("Reading assist: web text geometry still empty after the settle time")
+        logInfo("Reading assist: web text geometry unavailable or still empty after the settle time")
         return .unavailable
     }
 
@@ -208,6 +221,7 @@ struct WordLocator: Sendable {
               !text.isEmpty, text.utf16.count <= Self.maximumStaticTextLength else {
             return nil
         }
+        trace.sawStaticText = true
         let tokenizer = NLTokenizer(unit: .word)
         tokenizer.string = text
         var words: [NSRange] = []
@@ -227,6 +241,7 @@ struct WordLocator: Sendable {
         var queryCount = 0
         var boundsCount = 0
         var firstBounds: CGRect?
+        var nearest: (text: String, frame: CGRect, distance: CGFloat)?
         while let group = groups.popLast(), queryCount < Self.maximumBoundsQueries {
             let start = words[group.lowerBound].location
             let end = NSMaxRange(words[group.upperBound - 1])
@@ -244,19 +259,32 @@ struct WordLocator: Sendable {
                 trace.sawEmptyRangeBounds = true
                 break
             }
-            guard frame.insetBy(dx: -Self.hitSlop, dy: -Self.hitSlop).contains(point) else {
+            // Keep neighbors on the same line, so a pointer between words or on punctuation can snap.
+            guard frame.insetBy(dx: -Self.wordSnapDistance, dy: -Self.hitSlop).contains(point) else {
                 continue
             }
             if group.count == 1 {
-                if let word = validated(nsText.substring(with: words[group.lowerBound]), frame: frame, at: point) {
+                let text = nsText.substring(with: words[group.lowerBound])
+                if let word = validated(text, frame: frame, at: point) {
                     logInfo("Reading assist: static text word located with \(queryCount) bounds queries")
                     return word
+                }
+                let distance = max(frame.minX - point.x, 0, point.x - frame.maxX)
+                if distance <= Self.wordSnapDistance, distance < nearest?.distance ?? .infinity {
+                    nearest = (text, frame, distance)
                 }
                 continue
             }
             let middle = group.lowerBound + group.count / 2
             groups.append(middle ..< group.upperBound)
             groups.append(group.lowerBound ..< middle)
+        }
+        if let nearest {
+            let pointOnWord = CGPoint(x: min(max(point.x, nearest.frame.minX), nearest.frame.maxX), y: point.y)
+            if let word = validated(nearest.text, frame: nearest.frame, at: pointOnWord) {
+                logInfo("Reading assist: snapped \(Int(nearest.distance.rounded())) pt to the nearest word")
+                return word
+            }
         }
         let elementFrame = AXElementReader.frame(of: element).map { "\($0)" } ?? "nil"
         logInfo(
