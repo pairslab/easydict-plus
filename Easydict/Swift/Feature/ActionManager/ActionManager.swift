@@ -106,7 +106,8 @@ class ActionManager: NSObject {
     /// - Returns: The detected query, or nil for hovered text already in the user's first language.
     ///   An explicit selection always translates and retains its source formatting.
     func readingQuery(for text: String, isSelection: Bool = false) async throws -> QueryModel? {
-        let queryModel = try await detectedQuery(for: text, actionType: isSelection ? .shortcutQuery : .none)
+        let source = isSelection ? ReadingText(text).source : text
+        let queryModel = try await detectedQuery(for: source, actionType: isSelection ? .shortcutQuery : .none)
         return !isSelection && queryModel.detectedLanguage == Defaults[.firstLanguage] ? nil : queryModel
     }
 
@@ -115,10 +116,14 @@ class ActionManager: NSObject {
     func translateForReading(
         _ queryModel: QueryModel,
         service: QueryService,
-        onUpdate: @MainActor (String) -> ()
+        onUpdate: @escaping @MainActor (String) -> ()
     ) async throws
         -> String {
-        try await processText(queryModel: queryModel, type: .translate, service: service, onUpdate: onUpdate)
+        let document = ReadingText(queryModel.inputText)
+        if queryModel.actionType == .shortcutQuery, !document.segments.isEmpty {
+            return try await translateReadingSegments(document, query: queryModel, service: service, onUpdate: onUpdate)
+        }
+        return try await processText(queryModel: queryModel, type: .translate, service: service, onUpdate: onUpdate)
     }
 
     /// A short, readable reason for a failed request, preferring the service's own message.
@@ -475,5 +480,60 @@ class ActionManager: NSObject {
         }
         preview.phase = phase
         TranslationPreviewPanel.shared.dismiss(after: duration)
+    }
+}
+
+// MARK: - Selection Structure
+
+extension ActionManager {
+    /// Translate independent source blocks concurrently with isolated service state, then restore their layout.
+    @MainActor
+    private func translateReadingSegments(
+        _ document: ReadingText,
+        query: QueryModel,
+        service: QueryService,
+        onUpdate: @escaping @MainActor (String) -> ()
+    ) async throws -> String {
+        var translations = Array(repeating: "", count: document.segments.count)
+        let sourceLanguage = query.queryFromLanguage
+        let targetLanguage = query.queryTargetLanguage
+
+        try await withThrowingTaskGroup(of: Void.self) { group in
+            for index in document.segments.indices {
+                // A long selection must not issue one simultaneous request per line.
+                if index >= 3 {
+                    _ = try await group.next()
+                }
+                try Task.checkCancellation()
+                group.addTask { @MainActor in
+                    try Task.checkCancellation()
+                    let segmentQuery = QueryModel()
+                    segmentQuery.actionType = .shortcutQuery
+                    segmentQuery.inputText = document.segments[index].text
+                    segmentQuery.detectedLanguage = sourceLanguage
+                    segmentQuery.userSourceLanguage = sourceLanguage
+                    segmentQuery.userTargetLanguage = targetLanguage
+                    let segmentService = type(of: service).init()
+                    segmentService.uuid = service.uuid
+
+                    let translated = try await self.processText(
+                        queryModel: segmentQuery, type: .translate, service: segmentService
+                    ) { text in
+                        guard !Task.isCancelled else { return }
+                        translations[index] = text
+                        onUpdate(document.formatted(translations))
+                    }
+                    try Task.checkCancellation()
+                    guard !translated.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                        throw QueryError(type: .noResult)
+                    }
+                    translations[index] = translated
+                    onUpdate(document.formatted(translations))
+                }
+            }
+            try await group.waitForAll()
+        }
+        try Task.checkCancellation()
+        return document.formatted(translations)
     }
 }

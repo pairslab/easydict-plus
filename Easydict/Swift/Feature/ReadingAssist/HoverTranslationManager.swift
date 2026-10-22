@@ -431,10 +431,13 @@ final class HoverTranslationManager: NSObject {
         cardParagraph = paragraph
 
         let service = ActionManager.shared.translateService
+        let screen = NSScreen.screens.first { $0.frame.intersects(paragraph.frame) } ?? NSScreen.main
         let model = TranslationPreviewModel(
             service: service,
             activity: .translating,
-            layout: .reading(width: paragraph.frame.width + 2 * TranslationPreviewView.contentInset)
+            layout: isSelection
+                ? .selection(text: paragraph.text, screenSize: screen?.visibleFrame.size ?? CGSize(width: 800, height: 600))
+                : .reading(width: paragraph.frame.width + 2 * TranslationPreviewView.contentInset)
         )
         let cacheKey = "\(service.serviceTypeWithUniqueIdentifier())\n\(paragraph.text)"
         if !isSelection, let cachedTranslation = translationCache[cacheKey] {

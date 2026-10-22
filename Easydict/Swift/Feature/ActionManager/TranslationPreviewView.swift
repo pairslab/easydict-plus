@@ -71,6 +71,32 @@ final class TranslationPreviewModel: ObservableObject {
         static func reading(width: CGFloat) -> Layout {
             Layout(width: min(max(width, 320), 620), maxLines: nil, fontSize: 15, maximumContentHeight: 400)
         }
+
+        /// Chooses a comfortable width from the source blocks instead of treating a pointer anchor as text width.
+        @MainActor
+        static func selection(text: String, screenSize: CGSize) -> Layout {
+            let maximumWidth = min(620, max(240, screenSize.width - 40))
+            let maximumHeight = min(560, max(160, screenSize.height * 0.65))
+            let paragraphStyle = NSMutableParagraphStyle()
+            paragraphStyle.lineSpacing = 4
+            paragraphStyle.paragraphSpacing = 8
+            let attributes: [NSAttributedString.Key: Any] = [
+                .font: NSFont.systemFont(ofSize: 15),
+                .paragraphStyle: paragraphStyle,
+            ]
+            let source = ReadingText(text).source as NSString
+            var width = min(320, maximumWidth)
+            while width < maximumWidth {
+                let bounds = source.boundingRect(
+                    with: CGSize(width: width - 2 * TranslationPreviewView.contentInset, height: .greatestFiniteMagnitude),
+                    options: [.usesLineFragmentOrigin, .usesFontLeading],
+                    attributes: attributes
+                )
+                if bounds.height <= min(maximumHeight, width * 0.65) { break }
+                width = min(width + 60, maximumWidth)
+            }
+            return Layout(width: width, maxLines: nil, fontSize: 15, maximumContentHeight: maximumHeight)
+        }
     }
 
     let serviceTitle: String
@@ -221,14 +247,26 @@ struct TranslationPreviewView: View {
     }
 
     private var translatedText: some View {
-        Text(model.text)
-            .font(.system(size: model.layout.fontSize))
-            .foregroundStyle(.primary)
-            .lineSpacing(model.layout.fontSize * 0.25)
-            .lineLimit(model.layout.maxLines)
-            // Compact write-back previews show the latest words; reading cards keep the whole text.
-            .truncationMode(model.phase == .processing ? .head : .tail)
-            .fixedSize(horizontal: false, vertical: true)
+        Group {
+            if model.layout.maximumContentHeight != nil {
+                let paragraphs = model.text.split(omittingEmptySubsequences: false, whereSeparator: \.isNewline)
+                VStack(alignment: .leading, spacing: 8) {
+                    ForEach(Array(paragraphs.enumerated()), id: \.offset) { _, paragraph in
+                        Text(verbatim: String(paragraph))
+                            .frame(minHeight: paragraph.isEmpty ? model.layout.fontSize : nil, alignment: .leading)
+                    }
+                }
+            } else {
+                Text(model.text)
+                    .lineLimit(model.layout.maxLines)
+                    // Compact write-back previews show the latest words while streaming.
+                    .truncationMode(model.phase == .processing ? .head : .tail)
+            }
+        }
+        .font(.system(size: model.layout.fontSize))
+        .foregroundStyle(.primary)
+        .lineSpacing(model.layout.fontSize * 0.25)
+        .fixedSize(horizontal: false, vertical: true)
     }
 
     private func outcomeTitle(_ outcome: TranslationPreviewModel.Outcome) -> LocalizedStringKey {

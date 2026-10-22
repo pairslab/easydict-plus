@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		C7E798B82A804815B599CA8A /* ReadingText.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C391B8030644DD78105F222 /* ReadingText.swift */; };
 		D71101351011000000000003 /* EZQueryTableView.m in Sources */ = {isa = PBXBuildFile; fileRef = D71101351011000000000002 /* EZQueryTableView.m */; };
 		C0FFEEBF2026092400000000 /* GitHubCopilotDebugWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0FFEEFD2026092400000000 /* GitHubCopilotDebugWindow.swift */; };
 		C0FFEEBF2026092400000001 /* GitHubCopilotEffort.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0FFEEFD2026092400000001 /* GitHubCopilotEffort.swift */; };
@@ -705,6 +706,7 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		2C391B8030644DD78105F222 /* ReadingText.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReadingText.swift; sourceTree = "<group>"; };
 		D71101351011000000000001 /* EZQueryTableView.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = EZQueryTableView.h; sourceTree = "<group>"; };
 		D71101351011000000000002 /* EZQueryTableView.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = EZQueryTableView.m; sourceTree = "<group>"; };
 		C0FFEEFD2026092400000000 /* GitHubCopilotDebugWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GitHubCopilotDebugWindow.swift; sourceTree = "<group>"; };
@@ -2434,6 +2436,7 @@
 			isa = PBXGroup;
 			children = (
 				03A00D872E616D56001A4D82 /* ActionManager.swift */,
+				2C391B8030644DD78105F222 /* ReadingText.swift */,
 				DE85941526BE6C95434E5D8A /* TextReplacementServiceOption.swift */,
 				1BA69072FFA45623E3344EB7 /* TranslationPreviewPanel.swift */,
 				9285DF673FDDFAA52DF5BF27 /* TranslationPreviewView.swift */,
@@ -4899,6 +4902,7 @@
 				031760F42E07FB2800CE8FD7 /* AppleLanguageDetector.swift in Sources */,
 				EAE3D3502B62E9DE001EE3E3 /* GlobalContext.swift in Sources */,
 				03715A292E6D25170067259C /* ActionManager.swift in Sources */,
+				C7E798B82A804815B599CA8A /* ReadingText.swift in Sources */,
 				749143681EFF99CAAF196875 /* NSPanel+FloatingOverlay.swift in Sources */,
 				5BEBBAFB9C9F2076E819C3C9 /* WordLookupManager.swift in Sources */,
 				89ED3B1A18CC825C7AF3E777 /* WordLookupPanel.swift in Sources */,
