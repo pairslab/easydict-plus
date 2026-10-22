@@ -58,9 +58,11 @@ final class WordLookupManager {
                     return
                 }
                 guard let located, Self.accepts(located.word) else {
+                    logInfo("Reading assist: no supported word at pointer")
                     self.dismiss()
                     return
                 }
+                logInfo("Reading assist: presenting word card, context available: \(located.sentence != nil)")
                 let model = WordLookupModel(word: located.word)
                 self.presentedModel = model
                 self.present(model, located: located)

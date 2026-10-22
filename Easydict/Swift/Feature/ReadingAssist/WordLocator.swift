@@ -22,7 +22,7 @@ struct LocatedWord: Sendable {
 
 // MARK: - WordLocator
 
-/// Reads a word through web text markers or native character ranges, without changing selection.
+/// Reads a word through text range bounds, web markers, or native character positions.
 /// All Accessibility calls wait on the target app, so run this off the main thread.
 struct WordLocator: Sendable {
     // MARK: Internal
@@ -37,11 +37,13 @@ struct WordLocator: Sendable {
             return nil
         }
         let ancestors = AXElementReader.ancestry(of: element)
-        guard !ancestors.contains(where: isEditable) else {
+        if let editable = ancestors.first(where: isEditable) {
+            logInfo("Reading assist: editable text ignored, role: \(AXElementReader.role(of: editable) ?? "unknown")")
             return nil
         }
         for node in ancestors {
-            guard let found = webWord(in: node, at: point)
+            guard let found = staticTextWord(in: node, at: point)
+                ?? webWord(in: node, at: point)
                 ?? nativeWord(in: node, at: point)
                 ?? labelWord(in: node, at: point) else {
                 continue
@@ -54,12 +56,16 @@ struct WordLocator: Sendable {
                 sentence: paragraph.flatMap { Self.sentence(containing: found.text, in: $0.text) }
             )
         }
+        let roles = ancestors.compactMap { AXElementReader.role(of: $0) }.joined(separator: "/")
+        logInfo("Reading assist: unsupported word geometry, roles: \(roles)")
         return nil
     }
 
     // MARK: Private
 
     private static let maximumSentenceLength = 400
+    private static let maximumStaticTextLength = 16000
+    private static let maximumBoundsQueries = 64
     private static let hitSlop: CGFloat = 2
 
     private func isEditable(_ element: AXUIElement) -> Bool {
@@ -67,24 +73,71 @@ struct WordLocator: Sendable {
             || AXElementReader.isSettable(element, kAXValueAttribute)
     }
 
-    /// Left and right ranges differ at word boundaries; accept only the range under the pointer.
+    /// Chromium exposes bounds for static text ranges even when position-to-marker lookup is absent.
+    /// Prune groups by their bounds so long text runs do not require a query for every word.
+    private func staticTextWord(in element: AXUIElement, at point: CGPoint) -> (text: String, frame: CGRect)? {
+        guard AXElementReader.role(of: element) == kAXStaticTextRole,
+              let text = AXElementReader.string(element, kAXValueAttribute),
+              !text.isEmpty, text.utf16.count <= Self.maximumStaticTextLength else {
+            return nil
+        }
+        let tokenizer = NLTokenizer(unit: .word)
+        tokenizer.string = text
+        var words: [NSRange] = []
+        tokenizer.enumerateTokens(in: text.startIndex ..< text.endIndex) { range, _ in
+            if WordLookupManager.accepts(String(text[range])) {
+                words.append(NSRange(range, in: text))
+            }
+            return true
+        }
+        guard !words.isEmpty else {
+            return nil
+        }
+
+        let nsText = text as NSString
+        var groups = [words.indices]
+        var queryCount = 0
+        while let group = groups.popLast(), queryCount < Self.maximumBoundsQueries {
+            let start = words[group.lowerBound].location
+            let end = NSMaxRange(words[group.upperBound - 1])
+            let range = CFRange(location: start, length: end - start)
+            queryCount += 1
+            guard let frame = AXElementReader.rect(from: AXElementReader.parameterizedAttribute(
+                element, "AXBoundsForRange", AXElementReader.rangeValue(range)
+            )), frame.insetBy(dx: -Self.hitSlop, dy: -Self.hitSlop).contains(point) else {
+                continue
+            }
+            if group.count == 1 {
+                if let word = validated(nsText.substring(with: words[group.lowerBound]), frame: frame, at: point) {
+                    logInfo("Reading assist: static text word located with \(queryCount) bounds queries")
+                    return word
+                }
+                continue
+            }
+            let middle = group.lowerBound + group.count / 2
+            groups.append(middle ..< group.upperBound)
+            groups.append(group.lowerBound ..< middle)
+        }
+        return nil
+    }
+
+    /// Expand to both word boundaries; one-sided word ranges can contain only a word fragment.
     private func webWord(in element: AXUIElement, at point: CGPoint) -> (text: String, frame: CGRect)? {
         guard let marker = AXElementReader.parameterizedAttribute(
             element, "AXTextMarkerForPosition", AXElementReader.pointValue(point)
-        ) else {
+        ), let start = AXElementReader.parameterizedAttribute(
+            element, "AXPreviousWordStartTextMarkerForTextMarker", marker
+        ), let end = AXElementReader.parameterizedAttribute(
+            element, "AXNextWordEndTextMarkerForTextMarker", marker
+        ), let range = AXElementReader.parameterizedAttribute(
+            element, "AXTextMarkerRangeForUnorderedTextMarkers", [start, end] as CFArray
+        ), let text = AXElementReader.parameterizedAttribute(element, "AXStringForTextMarkerRange", range) as? String,
+            let frame = AXElementReader.rect(from: AXElementReader.parameterizedAttribute(
+                element, "AXBoundsForTextMarkerRange", range
+            )) else {
             return nil
         }
-        for attribute in ["AXLeftWordTextMarkerRangeForTextMarker", "AXRightWordTextMarkerRangeForTextMarker"] {
-            guard let range = AXElementReader.parameterizedAttribute(element, attribute, marker),
-                  let text = AXElementReader.parameterizedAttribute(element, "AXStringForTextMarkerRange", range) as? String,
-                  let frame = AXElementReader.rect(from: AXElementReader.parameterizedAttribute(
-                      element, "AXBoundsForTextMarkerRange", range
-                  )), let word = validated(text, frame: frame, at: point) else {
-                continue
-            }
-            return word
-        }
-        return nil
+        return validated(text, frame: frame, at: point)
     }
 
     /// Tokenize the native paragraph at the reported character, never an unrelated existing selection.

@@ -14,7 +14,8 @@ import Defaults
 
 /// Translates the paragraph under the mouse while the trigger modifier is held.
 ///
-/// Holding the modifier alone starts tracking immediately: the paragraph under the mouse is
+/// Holding the modifier alone starts tracking immediately, unless it also handles word taps.
+/// That shared key must remain held before paragraph tracking starts. The paragraph is
 /// outlined and the outline follows the pointer between paragraphs. Resting on a paragraph,
 /// or releasing the modifier, translates it into a card right below. The card stays after the
 /// release and fades out when the mouse leaves it, the page scrolls, a click or key press
@@ -51,8 +52,8 @@ final class HoverTranslationManager: NSObject {
 
     /// Show the outline immediately, but let shortcuts and movement cancel before a network request.
     private static let translationDelay: TimeInterval = 0.15
-    /// A tap is recognized on release; paragraph requests wait until this ambiguity is resolved.
-    private static let wordTapInterval: TimeInterval = 0.25
+    /// Give a standalone tap priority before committing the shared key to paragraph mode.
+    private static let paragraphHoldDelay: TimeInterval = 0.5
     private static let triggerModifiers: NSEvent.ModifierFlags = [.command, .option, .control, .shift]
     /// Chat messages can change while hovered, so only reuse their geometry briefly.
     private static let paragraphReuseInterval: TimeInterval = 0.35
@@ -73,6 +74,7 @@ final class HoverTranslationManager: NSObject {
     private var wordTapStartedAt: TimeInterval?
     private var state = State.idle
 
+    private var paragraphHoldTask: Task<(), Never>?
     private var dwellTask: Task<(), Never>?
     private var translationTask: Task<(), Never>?
 
@@ -127,7 +129,7 @@ final class HoverTranslationManager: NSObject {
 
     /// Returns to idle, hiding the outline and the card.
     private func reset() {
-        wordTapStartedAt = nil
+        cancelWordTap()
         if state == .tracking {
             endTracking(translatesHighlighted: false)
         }
@@ -140,7 +142,7 @@ final class HoverTranslationManager: NSObject {
     private func handle(_ event: NSEvent) {
         switch event.type {
         case .flagsChanged:
-            handleModifiersChanged(event.modifierFlags)
+            handleModifiersChanged(event)
         case .keyDown:
             // A key press means typing or a shortcut, never a hover lookup.
             reset()
@@ -153,31 +155,35 @@ final class HoverTranslationManager: NSObject {
         }
     }
 
-    private func handleModifiersChanged(_ flags: NSEvent.ModifierFlags) {
+    private func handleModifiersChanged(_ event: NSEvent) {
         let previousModifiers = heldModifiers
-        heldModifiers = flags.intersection(Self.triggerModifiers)
+        heldModifiers = event.modifierFlags.intersection(Self.triggerModifiers)
         guard heldModifiers != previousModifiers else {
             return
         }
 
-        let now = ProcessInfo.processInfo.systemUptime
-        if heldModifiers.isEmpty, let startedAt = wordTapStartedAt,
-           now - startedAt < Self.wordTapInterval {
+        if heldModifiers.isEmpty, let startedAt = wordTapStartedAt {
             reset()
+            logInfo("Reading assist: word tap released after \(Int((event.timestamp - startedAt) * 1000)) ms")
             WordLookupManager.shared.lookUp(at: NSEvent.mouseLocation)
             return
         }
-        wordTapStartedAt = nil
+        cancelWordTap()
 
         // Only a fresh standalone press can start a gesture, never the tail of a shortcut.
         let startsGesture = previousModifiers.isEmpty
         if startsGesture, heldModifiers == .option, wordLookupEnabled {
-            wordTapStartedAt = now
+            reset()
+            wordTapStartedAt = event.timestamp
             WordLookupManager.shared.dismiss()
         }
         if startsGesture, let modifierFlag, heldModifiers == modifierFlag {
             WordLookupManager.shared.dismiss()
-            beginTracking()
+            if wordTapStartedAt != nil {
+                beginParagraphTrackingAfterHold()
+            } else {
+                beginTracking()
+            }
             return
         }
 
@@ -186,6 +192,28 @@ final class HoverTranslationManager: NSObject {
         if wasTracking {
             endTracking(translatesHighlighted: heldModifiers.isEmpty)
         }
+    }
+
+    /// Only a key that is still physically held can turn a pending word tap into paragraph mode.
+    private func beginParagraphTrackingAfterHold() {
+        paragraphHoldTask = Task { [weak self] in
+            await Task.sleep(seconds: Self.paragraphHoldDelay)
+            guard let self, !Task.isCancelled, wordTapStartedAt != nil,
+                  let modifierFlag, heldModifiers == modifierFlag,
+                  NSEvent.modifierFlags.intersection(Self.triggerModifiers) == modifierFlag else {
+                return
+            }
+            wordTapStartedAt = nil
+            paragraphHoldTask = nil
+            logInfo("Reading assist: paragraph hold confirmed")
+            beginTracking()
+        }
+    }
+
+    private func cancelWordTap() {
+        wordTapStartedAt = nil
+        paragraphHoldTask?.cancel()
+        paragraphHoldTask = nil
     }
 
     private func handleMouseMoved() {
@@ -201,7 +229,7 @@ final class HoverTranslationManager: NSObject {
     }
 
     private func handleScroll() {
-        wordTapStartedAt = nil
+        cancelWordTap()
         // Scrolling moves the text away from the outline and the card.
         dismissCard()
         guard state == .tracking else {
@@ -298,11 +326,8 @@ final class HoverTranslationManager: NSObject {
         guard paragraph != cardParagraph else {
             return
         }
-        let remainingTapInterval = wordTapStartedAt.map {
-            max(0, Self.wordTapInterval - (ProcessInfo.processInfo.systemUptime - $0))
-        } ?? 0
         dwellTask = Task { [weak self] in
-            await Task.sleep(seconds: max(Self.translationDelay, remainingTapInterval))
+            await Task.sleep(seconds: Self.translationDelay)
             guard let self, !Task.isCancelled, state == .tracking, highlightedParagraph == paragraph else {
                 return
             }
