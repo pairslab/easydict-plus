@@ -335,8 +335,8 @@ static EZWindowManager *_instance;
      !!!: text may be @"" when no selected text in Chrome, so we need to handle it.
      */
     queryText = [[queryText ns_removeInvisibleChar] ns_trim];
+    BOOL isSelectionQuery = actionType == EZActionTypeShortcutQuery || actionType == EZActionTypeAutoSelectQuery;
     if (queryText.length == 0) {
-        BOOL isSelectionQuery = actionType == EZActionTypeShortcutQuery || actionType == EZActionTypeAutoSelectQuery;
         if (isSelectionQuery) {
             queryText = MyConfiguration.shared.keepPrevResultWhenEmpty ? nil : @"";
         }
@@ -344,6 +344,10 @@ static EZWindowManager *_instance;
     // Remove the excerpt info of the books only when the frontmost app is Books.app
     else {
         queryText = [queryText removeBooksExcerptInfo];
+        // Selected text keeps its structure; only lines that merely wrap a sentence, as in PDFs, are joined.
+        if (isSelectionQuery || actionType == EZActionTypeInvokeQuery) {
+            queryText = [queryText joiningWrappedLines];
+        }
     }
         
     self.selectedText = queryText;

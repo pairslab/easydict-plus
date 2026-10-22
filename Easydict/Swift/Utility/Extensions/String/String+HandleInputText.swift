@@ -47,6 +47,48 @@ extension String {
         (self as NSString).handleInputText() as String
     }
 
+    /// Joins lines that only wrap a sentence, as in text selected from a PDF, keeping every other break.
+    ///
+    /// A break is joined only when its line ends without sentence or clause punctuation and the next line
+    /// starts with a lowercase letter and is not a lettered list item; a hyphen splitting a word there is
+    /// removed. Blank lines, list items, headings and indented lines keep their breaks, so only text that
+    /// clearly continues a sentence is merged.
+    func joiningWrappedLines() -> String {
+        let lines = replacingOccurrences(of: "\r\n", with: "\n").components(separatedBy: "\n")
+        guard lines.count > 1 else {
+            return self
+        }
+        var output = [lines[0]]
+        for line in lines.dropFirst() {
+            let previous = output[output.count - 1]
+            guard Self.continuesSentence(from: previous, to: line) else {
+                output.append(line)
+                continue
+            }
+            let trimmed = String(previous.reversed().drop(while: \.isWhitespace).reversed())
+            if trimmed.hasSuffix("-"), trimmed.dropLast().last?.isLetter == true {
+                output[output.count - 1] = String(trimmed.dropLast()) + line
+            } else {
+                output[output.count - 1] = trimmed + " " + line
+            }
+        }
+        return output.joined(separator: "\n")
+    }
+
+    // MARK: Private
+
+    private static let lineEndPunctuation = Set(".!?:;。！？：；")
+
+    /// Whether `next` continues the sentence that `previous` breaks off.
+    private static func continuesSentence(from previous: String, to next: String) -> Bool {
+        guard let last = previous.last(where: { !$0.isWhitespace }), !lineEndPunctuation.contains(last),
+              let first = next.first, first.isLetter, first.isLowercase else {
+            return false
+        }
+        // Lettered or roman list items such as "a) " or "ii. " start a new line on purpose.
+        return next.range(of: #"^[a-z]{1,4}[.)]\s"#, options: .regularExpression) == nil
+    }
+
     // MARK: - ObjC Method Wrappers
 
     /// Try to remove quotes from string (wrapper for ObjC method)
@@ -116,6 +158,11 @@ extension NSString {
         }
 
         return queryText as NSString
+    }
+
+    /// Joins lines that only wrap a sentence; see `String.joiningWrappedLines()`.
+    func joiningWrappedLines() -> NSString {
+        (self as String).joiningWrappedLines() as NSString
     }
 
     /// Remove the excerpt copyright notice from Books.app selection text.
