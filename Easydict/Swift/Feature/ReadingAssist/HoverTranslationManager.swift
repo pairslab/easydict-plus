@@ -76,8 +76,6 @@ final class HoverTranslationManager: NSObject {
     private var heldModifiers: NSEvent.ModifierFlags = []
     private var wordTapStartedAt: TimeInterval?
     private var selectionProbe: Task<String?, Never>?
-    /// The selection the last gesture translated, so it can be recognized if it is still highlighted.
-    private var lastTranslatedSelection: ReadingSelection?
     private var selectionQueryTask: Task<(), Never>?
     private var state = State.idle
 
@@ -225,11 +223,7 @@ final class HoverTranslationManager: NSObject {
         if startsGesture, heldModifiers == .option, wordLookupEnabled || modifierFlag == .option {
             reset()
             wordTapStartedAt = event.timestamp
-            let pressLocation = NSEvent.mouseLocation
-            let alreadyTranslated = lastTranslatedSelection
-            selectionProbe = Task {
-                await SystemUtility.shared.readingSelection(at: pressLocation, alreadyTranslated: alreadyTranslated)
-            }
+            selectionProbe = Task { await SystemUtility.shared.readingSelection() }
             WordLookupManager.shared.dismiss()
         }
         if startsGesture, let modifierFlag, heldModifiers == modifierFlag {
@@ -293,9 +287,6 @@ final class HoverTranslationManager: NSObject {
                     return
                 }
                 logInfo("Reading assist: translating explicit selection (\(text.count) characters)")
-                if let processID {
-                    lastTranslatedSelection = ReadingSelection(processIdentifier: processID, text: text)
-                }
                 // Selection APIs do not always expose bounds; anchor the shared reading card at the gesture.
                 let source = HoveredParagraph(
                     text: text,
