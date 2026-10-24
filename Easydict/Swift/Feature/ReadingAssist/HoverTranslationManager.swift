@@ -120,6 +120,32 @@ final class HoverTranslationManager: NSObject {
         return ProcessInfo.processInfo.systemUptime - secondsSinceKeyDown > uptime + chordKeyMargin
     }
 
+    /// Whether the system or another app is using the modifier, so a press must not start a gesture.
+    ///
+    /// A held mouse button means Option-drag, Option-resize or a similar pointer action. An open menu under
+    /// the pointer means Option reveals its alternate items. Menus are windows at the pop-up menu level,
+    /// whose frames are readable without Accessibility calls or screen recording access.
+    private static func isModifierInUse(at cocoaPoint: CGPoint) -> Bool {
+        if NSEvent.pressedMouseButtons != 0 {
+            return true
+        }
+        guard let windows = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID)
+            as? [[String: Any]] else {
+            return false
+        }
+        let menuLevel = Int(CGWindowLevelForKey(.popUpMenuWindow))
+        // Window bounds use a top-left origin on the primary screen.
+        let point = CGPoint(x: cocoaPoint.x, y: (NSScreen.screens.first?.frame.maxY ?? 0) - cocoaPoint.y)
+        return windows.contains { window in
+            guard window[kCGWindowLayer as String] as? Int == menuLevel,
+                  let bounds = window[kCGWindowBounds as String] as? NSDictionary,
+                  let frame = CGRect(dictionaryRepresentation: bounds) else {
+                return false
+            }
+            return frame.contains(point)
+        }
+    }
+
     // MARK: Setup
 
     private func apply(_ trigger: HoverTranslationTrigger, wordLookupEnabled: Bool) {
@@ -210,6 +236,11 @@ final class HoverTranslationManager: NSObject {
                 logInfo("Reading assist: word tap ignored, a key was pressed during the \(heldMilliseconds) ms hold")
                 return
             }
+            guard NSEvent.pressedMouseButtons == 0 else {
+                selection?.cancel()
+                logInfo("Reading assist: word tap ignored, a mouse button is held")
+                return
+            }
             logInfo("Reading assist: word tap released after \(heldMilliseconds) ms")
             translateSelectionOrLookUp(selection, at: NSEvent.mouseLocation)
             return
@@ -218,8 +249,13 @@ final class HoverTranslationManager: NSObject {
         selectionQueryTask = nil
         cancelWordTap()
 
-        // Only a fresh standalone press can start a gesture, never the tail of a shortcut.
-        let startsGesture = isStandalonePress
+        // Only a fresh standalone press can start a gesture, never the tail of a shortcut, and never
+        // a press the system or another app is using.
+        var startsGesture = isStandalonePress
+        if startsGesture, Self.isModifierInUse(at: NSEvent.mouseLocation) {
+            startsGesture = false
+            logInfo("Reading assist: modifier press ignored, a mouse button or menu is using it")
+        }
         if startsGesture, heldModifiers == .option, wordLookupEnabled || modifierFlag == .option {
             reset()
             wordTapStartedAt = event.timestamp
@@ -250,7 +286,8 @@ final class HoverTranslationManager: NSObject {
             let selection = await self?.selectionProbe?.value
             guard let self, !Task.isCancelled, wordTapStartedAt != nil,
                   let modifierFlag, heldModifiers == modifierFlag,
-                  NSEvent.modifierFlags.intersection(Self.triggerModifiers) == modifierFlag else {
+                  NSEvent.modifierFlags.intersection(Self.triggerModifiers) == modifierFlag,
+                  !Self.isModifierInUse(at: NSEvent.mouseLocation) else {
                 return
             }
             // A selection remains a selection even when the user holds the key longer.
