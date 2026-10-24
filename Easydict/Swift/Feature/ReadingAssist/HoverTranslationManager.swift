@@ -89,6 +89,8 @@ final class HoverTranslationManager: NSObject {
     private var highlightedParagraph: HoveredParagraph?
     private var paragraphLocatedAt: TimeInterval = 0
     private var cardParagraph: HoveredParagraph?
+    /// Text of the card showing when the current gesture began; tapping again closes rather than repeats it.
+    private var cardTextAtPress: String?
     private var cardModel: TranslationPreviewModel?
 
     private var translationCache: [String: String] = [:]
@@ -242,7 +244,9 @@ final class HoverTranslationManager: NSObject {
                 return
             }
             logInfo("Reading assist: word tap released after \(heldMilliseconds) ms")
-            translateSelectionOrLookUp(selection, at: NSEvent.mouseLocation)
+            // A press held past the hold delay without becoming a paragraph hold is not a tap.
+            let isQuickTap = event.timestamp - startedAt < Self.paragraphHoldDelay
+            translateSelectionOrLookUp(selection, at: NSEvent.mouseLocation, isQuickTap: isQuickTap)
             return
         }
         selectionQueryTask?.cancel()
@@ -257,6 +261,7 @@ final class HoverTranslationManager: NSObject {
             logInfo("Reading assist: modifier press ignored, a mouse button or menu is using it")
         }
         if startsGesture, heldModifiers == .option, wordLookupEnabled || modifierFlag == .option {
+            cardTextAtPress = cardParagraph?.text
             reset()
             wordTapStartedAt = event.timestamp
             selectionProbe = Task { await SystemUtility.shared.readingSelection() }
@@ -290,7 +295,7 @@ final class HoverTranslationManager: NSObject {
                   !Self.isModifierInUse(at: NSEvent.mouseLocation) else {
                 return
             }
-            // A selection remains a selection even when the user holds the key longer.
+            // With a selection a hold never becomes paragraph mode; only a quick tap translates the selection.
             guard selection == nil, let startedAt = wordTapStartedAt,
                   !Self.keyWentDown(since: startedAt) else {
                 return
@@ -311,16 +316,31 @@ final class HoverTranslationManager: NSObject {
     }
 
     /// Explicit selections win over pointer lookup, with the same cancellation rules as the gesture.
-    private func translateSelectionOrLookUp(_ selection: Task<String?, Never>?, at location: CGPoint) {
+    private func translateSelectionOrLookUp(
+        _ selection: Task<String?, Never>?,
+        at location: CGPoint,
+        isQuickTap: Bool
+    ) {
         let processID = NSWorkspace.shared.frontmostApplication?.processIdentifier
+        let shownText = cardTextAtPress
+        cardTextAtPress = nil
         selectionQueryTask = Task {
             let text = await selection?.value
             guard !Task.isCancelled,
                   NSWorkspace.shared.frontmostApplication?.processIdentifier == processID else {
                 return
             }
+            guard isQuickTap else {
+                logInfo("Reading assist: long press ignored, only a quick tap reads or translates")
+                return
+            }
             if let text {
                 guard !Screenshot.shared.isTakingScreenshot else {
+                    return
+                }
+                // The press already closed this selection's card; translating it again would only repeat it.
+                guard text != shownText else {
+                    logInfo("Reading assist: selection card closed by tapping again")
                     return
                 }
                 logInfo("Reading assist: translating explicit selection (\(text.count) characters)")
