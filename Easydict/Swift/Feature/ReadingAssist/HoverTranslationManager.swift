@@ -223,7 +223,8 @@ final class HoverTranslationManager: NSObject {
         if startsGesture, heldModifiers == .option, wordLookupEnabled || modifierFlag == .option {
             reset()
             wordTapStartedAt = event.timestamp
-            selectionProbe = Task { await SystemUtility.shared.readingSelection() }
+            let pressLocation = NSEvent.mouseLocation
+            selectionProbe = Task { await SystemUtility.shared.readingSelection(at: pressLocation) }
             WordLookupManager.shared.dismiss()
         }
         if startsGesture, let modifierFlag, heldModifiers == modifierFlag {

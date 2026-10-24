@@ -483,36 +483,48 @@ enum TextRunReader {
 
     /// Enough runs for any page of a PDF text layer.
     private static let maximumRuns = 3000
-    /// Inline wrappers, such as links or emphasis, climbed to reach the block holding the paragraph.
+    /// Nested links climbed to reach the block holding the paragraph.
     private static let maximumClimb = 4
     private static let maximumDepth = 8
+    private static let controlRoles: Set<String> = [
+        kAXButtonRole, kAXPopUpButtonRole, kAXMenuButtonRole, kAXCheckBoxRole, kAXRadioButtonRole,
+        kAXTextFieldRole, kAXTextAreaRole, kAXComboBoxRole, kAXMenuRole, kAXMenuBarRole, kAXToolbarRole,
+        kAXSliderRole, kAXIncrementorRole, "AXTabGroup",
+    ]
 
     /// The text runs of the block holding `element`, in reading order.
-    /// Climbs out of wrappers that hold no other text, so a word inside a link still reads its paragraph.
+    ///
+    /// Climbs only out of links, so a word inside a link still reads its paragraph. A block holding a
+    /// single run is the paragraph itself; climbing past it would gather neighboring paragraphs and
+    /// unrelated content, since inline styling such as emphasis has no element of its own.
     private static func runs(around element: AXUIElement) -> [AXUIElement] {
-        var block = element
-        var runs = [element]
+        guard var block = AXElementReader.parent(of: element) else {
+            return [element]
+        }
         for _ in 0 ..< maximumClimb {
-            guard let parent = AXElementReader.parent(of: block) else {
+            guard AXElementReader.role(of: block) == "AXLink", let parent = AXElementReader.parent(of: block) else {
                 break
             }
             block = parent
-            runs = staticTexts(in: block)
-            if runs.count > 1 || AXElementReader.role(of: block) == "AXWebArea" {
-                break
-            }
         }
-        return runs
+        let runs = staticTexts(in: block)
+        return runs.contains(where: { CFEqual($0, element) }) ? runs : [element]
     }
 
+    /// Text runs of the content inside `element`, skipping controls whose labels are not prose.
     private static func staticTexts(in element: AXUIElement) -> [AXUIElement] {
         var runs: [AXUIElement] = []
         func collect(_ node: AXUIElement, depth: Int) {
             guard runs.count < maximumRuns else {
                 return
             }
-            if AXElementReader.role(of: node) == kAXStaticTextRole {
+            let role = AXElementReader.role(of: node)
+            if role == kAXStaticTextRole {
                 runs.append(node)
+                return
+            }
+            // Button titles, menus and input text sit beside prose without belonging to it.
+            if let role, controlRoles.contains(role) {
                 return
             }
             guard depth < maximumDepth else {
