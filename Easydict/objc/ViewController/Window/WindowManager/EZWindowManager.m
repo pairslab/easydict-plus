@@ -334,9 +334,12 @@ static EZWindowManager *_instance;
 
      !!!: text may be @"" when no selected text in Chrome, so we need to handle it.
      */
-    queryText = [[queryText ns_removeInvisibleChar] ns_trim];
-    if (queryText.length == 0) {
-        BOOL isSelectionQuery = actionType == EZActionTypeShortcutQuery || actionType == EZActionTypeAutoSelectQuery;
+    BOOL isSelectionQuery = actionType == EZActionTypeShortcutQuery || actionType == EZActionTypeAutoSelectQuery;
+    BOOL preservesSourceStructure = isSelectionQuery || actionType == EZActionTypeInvokeQuery;
+    if (!preservesSourceStructure) {
+        queryText = [[queryText ns_removeInvisibleChar] ns_trim];
+    }
+    if ([queryText ns_trim].length == 0) {
         if (isSelectionQuery) {
             queryText = MyConfiguration.shared.keepPrevResultWhenEmpty ? nil : @"";
         }
@@ -344,6 +347,7 @@ static EZWindowManager *_instance;
     // Remove the excerpt info of the books only when the frontmost app is Books.app
     else {
         queryText = [queryText removeBooksExcerptInfo];
+        // Plain text cannot distinguish PDF wrapping from intentional breaks; preserve the selection.
     }
         
     self.selectedText = queryText;

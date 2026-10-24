@@ -43,6 +43,8 @@ final class TranslationPreviewPanel {
         self.anchorRect = anchorRect ?? mouseAnchorRect()
         leadingOffset = alignsTextWithAnchor ? TranslationPreviewView.contentInset : 0
         placesAboveAnchor = nil
+        // Reading cards accept scrolling without activating the app; write-back previews stay click-through.
+        panel.ignoresMouseEvents = model.layout.maximumContentHeight == nil
 
         hostingController.rootView = TranslationPreviewView(model: model)
         modelObservation = model.objectWillChange.sink { [weak self] _ in
@@ -99,8 +101,8 @@ final class TranslationPreviewPanel {
 
     private lazy var hostingController: NSHostingController<TranslationPreviewView> = {
         let placeholder = TranslationPreviewModel(
-            serviceName: "",
-            serviceIconName: "",
+            serviceTitle: "",
+            serviceIcon: nil,
             activity: .translating
         )
         let controller = NSHostingController(rootView: TranslationPreviewView(model: placeholder))

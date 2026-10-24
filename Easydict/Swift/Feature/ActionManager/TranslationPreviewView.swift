@@ -17,11 +17,21 @@ import SwiftUI
 final class TranslationPreviewModel: ObservableObject {
     // MARK: Lifecycle
 
-    init(serviceName: String, serviceIconName: String, activity: Activity, layout: Layout = .compact) {
-        self.serviceName = serviceName
-        self.serviceIconName = serviceIconName
+    init(serviceTitle: String, serviceIcon: NSImage?, activity: Activity, layout: Layout = .compact) {
+        self.serviceTitle = serviceTitle
+        self.serviceIcon = serviceIcon
         self.activity = activity
         self.layout = layout
+    }
+
+    /// A card for `service`, presented as translation results present it; see `ServiceDisplay`.
+    convenience init(service: QueryService, activity: Activity, layout: Layout = .compact) {
+        self.init(
+            serviceTitle: ServiceDisplay.title(for: service),
+            serviceIcon: ServiceDisplay.icon(for: service),
+            activity: activity,
+            layout: layout
+        )
     }
 
     // MARK: Internal
@@ -55,20 +65,49 @@ final class TranslationPreviewModel: ObservableObject {
         let width: CGFloat
         let maxLines: Int?
         let fontSize: CGFloat
+        var maximumContentHeight: CGFloat?
 
         /// A card matching the width of the paragraph being read, within comfortable bounds.
         static func reading(width: CGFloat) -> Layout {
-            Layout(width: min(max(width, 320), 620), maxLines: 24, fontSize: 15)
+            Layout(width: min(max(width, 320), 620), maxLines: nil, fontSize: 15, maximumContentHeight: 400)
+        }
+
+        /// Chooses a comfortable width from the source blocks instead of treating a pointer anchor as text width.
+        @MainActor
+        static func selection(text: String, screenSize: CGSize) -> Layout {
+            let maximumWidth = min(620, max(240, screenSize.width - 40))
+            let maximumHeight = min(560, max(160, screenSize.height * 0.65))
+            let paragraphStyle = NSMutableParagraphStyle()
+            paragraphStyle.lineSpacing = 4
+            paragraphStyle.paragraphSpacing = 8
+            let attributes: [NSAttributedString.Key: Any] = [
+                .font: NSFont.systemFont(ofSize: 15),
+                .paragraphStyle: paragraphStyle,
+            ]
+            let source = ReadingText(text).source as NSString
+            var width = min(320, maximumWidth)
+            while width < maximumWidth {
+                let bounds = source.boundingRect(
+                    with: CGSize(width: width - 2 * TranslationPreviewView.contentInset, height: .greatestFiniteMagnitude),
+                    options: [.usesLineFragmentOrigin, .usesFontLeading],
+                    attributes: attributes
+                )
+                if bounds.height <= min(maximumHeight, width * 0.65) { break }
+                width = min(width + 60, maximumWidth)
+            }
+            return Layout(width: width, maxLines: nil, fontSize: 15, maximumContentHeight: maximumHeight)
         }
     }
 
-    let serviceName: String
-    let serviceIconName: String
+    let serviceTitle: String
+    let serviceIcon: NSImage?
     let activity: Activity
     let layout: Layout
 
     @Published var text = ""
     @Published var phase = Phase.processing
+    /// Measured by the reading view so short translations stay compact and long ones scroll.
+    @Published var contentHeight: CGFloat = 0
 }
 
 // MARK: - TranslationPreviewView
@@ -77,35 +116,37 @@ final class TranslationPreviewModel: ObservableObject {
 struct TranslationPreviewView: View {
     // MARK: Internal
 
-    /// Transparent margin around the card so its shadow is not clipped by the panel.
-    static let shadowInset: CGFloat = 18
+    static let shadowInset = TranslationCardStyle.shadowInset
     /// Horizontal padding between the card edge and its text.
-    static let contentInset: CGFloat = 14
+    static let contentInset = TranslationCardStyle.horizontalPadding
 
     @ObservedObject var model: TranslationPreviewModel
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: TranslationCardStyle.sectionSpacing) {
             header
             content
         }
         .padding(.horizontal, Self.contentInset)
-        .padding(.vertical, 12)
+        .padding(.vertical, TranslationCardStyle.verticalPadding)
         .frame(width: model.layout.width, alignment: .leading)
-        .background(.regularMaterial, in: cardShape)
-        .overlay {
-            cardShape.strokeBorder(.primary.opacity(0.1), lineWidth: 0.5)
-        }
-        .shadow(color: .black.opacity(0.2), radius: 14, y: 6)
-        .padding(Self.shadowInset)
+        .translationCardChrome(in: cardShape)
         .animation(.spring(response: 0.3, dampingFraction: 0.86), value: model.phase)
         .animation(.easeOut(duration: 0.16), value: model.text)
     }
 
     // MARK: Private
 
+    private struct ContentHeightKey: PreferenceKey {
+        static var defaultValue: CGFloat { 0 }
+
+        static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+            value = max(value, nextValue())
+        }
+    }
+
     private var cardShape: RoundedRectangle {
-        RoundedRectangle(cornerRadius: 14, style: .continuous)
+        RoundedRectangle(cornerRadius: TranslationCardStyle.cornerRadius, style: .continuous)
     }
 
     private var activityTitle: LocalizedStringKey {
@@ -119,14 +160,18 @@ struct TranslationPreviewView: View {
 
     private var header: some View {
         HStack(spacing: 7) {
-            Image(model.serviceIconName)
-                .resizable()
-                .scaledToFit()
-                .frame(width: 16, height: 16)
-                .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
+            if let icon = model.serviceIcon {
+                Image(nsImage: icon)
+                    .resizable()
+                    .renderingMode(icon.isTemplate ? .template : .original)
+                    .scaledToFit()
+                    .foregroundStyle(.secondary)
+                    .frame(width: TranslationCardStyle.headerIconSize, height: TranslationCardStyle.headerIconSize)
+                    .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
+            }
 
-            Text(model.serviceName)
-                .font(.system(size: 12, weight: .semibold))
+            Text(model.serviceTitle)
+                .font(TranslationCardStyle.headerFont)
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
 
@@ -155,13 +200,13 @@ struct TranslationPreviewView: View {
 
         case let .completed(outcome):
             Label(outcomeTitle(outcome), systemSymbol: outcomeSymbol(outcome))
-                .font(.system(size: 11, weight: .semibold))
+                .font(TranslationCardStyle.captionFont)
                 .foregroundStyle(outcome == .copied ? Color.accentColor : Color.green)
                 .transition(.scale(scale: 0.8).combined(with: .opacity))
 
         case .failed:
             Label("action.text_replacement.preview.failed", systemSymbol: .exclamationmarkTriangleFill)
-                .font(.system(size: 11, weight: .semibold))
+                .font(TranslationCardStyle.captionFont)
                 .foregroundStyle(.orange)
                 .transition(.scale(scale: 0.8).combined(with: .opacity))
         }
@@ -171,22 +216,57 @@ struct TranslationPreviewView: View {
     private var content: some View {
         if case let .failed(message) = model.phase {
             Text(message)
-                .font(.system(size: 12))
+                .font(TranslationCardStyle.placeholderFont)
                 .foregroundStyle(.secondary)
                 .lineLimit(4)
                 .fixedSize(horizontal: false, vertical: true)
         } else if model.text.isEmpty {
-            PlaceholderLines()
+            LoadingLines(widths: [nil, 180])
         } else {
-            Text(model.text)
-                .font(.system(size: model.layout.fontSize))
-                .foregroundStyle(.primary)
-                .lineSpacing(model.layout.fontSize * 0.25)
-                .lineLimit(model.layout.maxLines)
-                // While streaming, keep the newest words visible; once done, read from the start.
-                .truncationMode(model.phase == .processing ? .head : .tail)
-                .fixedSize(horizontal: false, vertical: true)
+            if let maximumHeight = model.layout.maximumContentHeight {
+                ScrollView {
+                    translatedText
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background {
+                            GeometryReader { geometry in
+                                Color.clear.preference(key: ContentHeightKey.self, value: geometry.size.height)
+                            }
+                        }
+                }
+                .frame(height: min(maximumHeight, model.contentHeight))
+                .onPreferenceChange(ContentHeightKey.self) { height in
+                    let roundedHeight = ceil(height)
+                    if model.contentHeight != roundedHeight {
+                        model.contentHeight = roundedHeight
+                    }
+                }
+            } else {
+                translatedText
+            }
         }
+    }
+
+    private var translatedText: some View {
+        Group {
+            if model.layout.maximumContentHeight != nil {
+                let paragraphs = model.text.split(omittingEmptySubsequences: false, whereSeparator: \.isNewline)
+                VStack(alignment: .leading, spacing: 8) {
+                    ForEach(Array(paragraphs.enumerated()), id: \.offset) { _, paragraph in
+                        Text(verbatim: String(paragraph))
+                            .frame(minHeight: paragraph.isEmpty ? model.layout.fontSize : nil, alignment: .leading)
+                    }
+                }
+            } else {
+                Text(model.text)
+                    .lineLimit(model.layout.maxLines)
+                    // Compact write-back previews show the latest words while streaming.
+                    .truncationMode(model.phase == .processing ? .head : .tail)
+            }
+        }
+        .font(.system(size: model.layout.fontSize))
+        .foregroundStyle(.primary)
+        .lineSpacing(model.layout.fontSize * 0.25)
+        .fixedSize(horizontal: false, vertical: true)
     }
 
     private func outcomeTitle(_ outcome: TranslationPreviewModel.Outcome) -> LocalizedStringKey {
@@ -208,29 +288,4 @@ struct TranslationPreviewView: View {
             .docOnClipboardFill
         }
     }
-}
-
-// MARK: - PlaceholderLines
-
-/// Softly pulsing skeleton lines shown until the first chunk of text arrives.
-private struct PlaceholderLines: View {
-    // MARK: Internal
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Capsule().frame(height: 8)
-            Capsule().frame(width: 180, height: 8)
-        }
-        .foregroundStyle(.primary.opacity(isPulsing ? 0.06 : 0.14))
-        .padding(.vertical, 3)
-        .onAppear {
-            withAnimation(.easeInOut(duration: 0.8).repeatForever(autoreverses: true)) {
-                isPulsing = true
-            }
-        }
-    }
-
-    // MARK: Private
-
-    @State private var isPulsing = false
 }

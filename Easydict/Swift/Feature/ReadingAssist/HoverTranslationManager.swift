@@ -75,6 +75,8 @@ final class HoverTranslationManager: NSObject {
     private var wordLookupEnabled = false
     private var heldModifiers: NSEvent.ModifierFlags = []
     private var wordTapStartedAt: TimeInterval?
+    private var selectionProbe: Task<String?, Never>?
+    private var selectionQueryTask: Task<(), Never>?
     private var state = State.idle
 
     private var paragraphHoldTask: Task<(), Never>?
@@ -87,6 +89,8 @@ final class HoverTranslationManager: NSObject {
     private var highlightedParagraph: HoveredParagraph?
     private var paragraphLocatedAt: TimeInterval = 0
     private var cardParagraph: HoveredParagraph?
+    /// Text of the card showing when the current gesture began; tapping again closes rather than repeats it.
+    private var cardTextAtPress: String?
     private var cardModel: TranslationPreviewModel?
 
     private var translationCache: [String: String] = [:]
@@ -116,6 +120,32 @@ final class HoverTranslationManager: NSObject {
     private static func keyWentDown(since uptime: TimeInterval) -> Bool {
         let secondsSinceKeyDown = CGEventSource.secondsSinceLastEventType(.hidSystemState, eventType: .keyDown)
         return ProcessInfo.processInfo.systemUptime - secondsSinceKeyDown > uptime + chordKeyMargin
+    }
+
+    /// Whether the system or another app is using the modifier, so a press must not start a gesture.
+    ///
+    /// A held mouse button means Option-drag, Option-resize or a similar pointer action. An open menu under
+    /// the pointer means Option reveals its alternate items. Menus are windows at the pop-up menu level,
+    /// whose frames are readable without Accessibility calls or screen recording access.
+    private static func isModifierInUse(at cocoaPoint: CGPoint) -> Bool {
+        if NSEvent.pressedMouseButtons != 0 {
+            return true
+        }
+        guard let windows = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID)
+            as? [[String: Any]] else {
+            return false
+        }
+        let menuLevel = Int(CGWindowLevelForKey(.popUpMenuWindow))
+        // Window bounds use a top-left origin on the primary screen.
+        let point = CGPoint(x: cocoaPoint.x, y: (NSScreen.screens.first?.frame.maxY ?? 0) - cocoaPoint.y)
+        return windows.contains { window in
+            guard window[kCGWindowLayer as String] as? Int == menuLevel,
+                  let bounds = window[kCGWindowBounds as String] as? NSDictionary,
+                  let frame = CGRect(dictionaryRepresentation: bounds) else {
+                return false
+            }
+            return frame.contains(point)
+        }
     }
 
     // MARK: Setup
@@ -159,6 +189,8 @@ final class HoverTranslationManager: NSObject {
     /// Returns to idle, hiding the outline and the card.
     private func reset() {
         cancelWordTap()
+        selectionQueryTask?.cancel()
+        selectionQueryTask = nil
         if state == .tracking {
             endTracking(translatesHighlighted: false)
         }
@@ -196,23 +228,43 @@ final class HoverTranslationManager: NSObject {
         }
 
         if heldModifiers.isEmpty, let startedAt = wordTapStartedAt {
+            // Detach the read before reset so the release can consume it without reading twice.
+            let selection = selectionProbe
+            selectionProbe = nil
             reset()
             let heldMilliseconds = Int((event.timestamp - startedAt) * 1000)
             guard !Self.keyWentDown(since: startedAt) else {
+                selection?.cancel()
                 logInfo("Reading assist: word tap ignored, a key was pressed during the \(heldMilliseconds) ms hold")
                 return
             }
+            guard NSEvent.pressedMouseButtons == 0 else {
+                selection?.cancel()
+                logInfo("Reading assist: word tap ignored, a mouse button is held")
+                return
+            }
             logInfo("Reading assist: word tap released after \(heldMilliseconds) ms")
-            WordLookupManager.shared.lookUp(at: NSEvent.mouseLocation)
+            // A press held past the hold delay without becoming a paragraph hold is not a tap.
+            let isQuickTap = event.timestamp - startedAt < Self.paragraphHoldDelay
+            translateSelectionOrLookUp(selection, at: NSEvent.mouseLocation, isQuickTap: isQuickTap)
             return
         }
+        selectionQueryTask?.cancel()
+        selectionQueryTask = nil
         cancelWordTap()
 
-        // Only a fresh standalone press can start a gesture, never the tail of a shortcut.
-        let startsGesture = isStandalonePress
-        if startsGesture, heldModifiers == .option, wordLookupEnabled {
+        // Only a fresh standalone press can start a gesture, never the tail of a shortcut, and never
+        // a press the system or another app is using.
+        var startsGesture = isStandalonePress
+        if startsGesture, Self.isModifierInUse(at: NSEvent.mouseLocation) {
+            startsGesture = false
+            logInfo("Reading assist: modifier press ignored, a mouse button or menu is using it")
+        }
+        if startsGesture, heldModifiers == .option, wordLookupEnabled || modifierFlag == .option {
+            cardTextAtPress = cardParagraph?.text
             reset()
             wordTapStartedAt = event.timestamp
+            selectionProbe = Task { await SystemUtility.shared.readingSelection() }
             WordLookupManager.shared.dismiss()
         }
         if startsGesture, let modifierFlag, heldModifiers == modifierFlag {
@@ -236,9 +288,16 @@ final class HoverTranslationManager: NSObject {
     private func beginParagraphTrackingAfterHold() {
         paragraphHoldTask = Task { [weak self] in
             await Task.sleep(seconds: Self.paragraphHoldDelay)
+            let selection = await self?.selectionProbe?.value
             guard let self, !Task.isCancelled, wordTapStartedAt != nil,
                   let modifierFlag, heldModifiers == modifierFlag,
-                  NSEvent.modifierFlags.intersection(Self.triggerModifiers) == modifierFlag else {
+                  NSEvent.modifierFlags.intersection(Self.triggerModifiers) == modifierFlag,
+                  !Self.isModifierInUse(at: NSEvent.mouseLocation) else {
+                return
+            }
+            // With a selection a hold never becomes paragraph mode; only a quick tap translates the selection.
+            guard selection == nil, let startedAt = wordTapStartedAt,
+                  !Self.keyWentDown(since: startedAt) else {
                 return
             }
             wordTapStartedAt = nil
@@ -250,8 +309,55 @@ final class HoverTranslationManager: NSObject {
 
     private func cancelWordTap() {
         wordTapStartedAt = nil
+        selectionProbe?.cancel()
+        selectionProbe = nil
         paragraphHoldTask?.cancel()
         paragraphHoldTask = nil
+    }
+
+    /// Explicit selections win over pointer lookup, with the same cancellation rules as the gesture.
+    private func translateSelectionOrLookUp(
+        _ selection: Task<String?, Never>?,
+        at location: CGPoint,
+        isQuickTap: Bool
+    ) {
+        let processID = NSWorkspace.shared.frontmostApplication?.processIdentifier
+        let shownText = cardTextAtPress
+        cardTextAtPress = nil
+        selectionQueryTask = Task {
+            let text = await selection?.value
+            guard !Task.isCancelled,
+                  NSWorkspace.shared.frontmostApplication?.processIdentifier == processID else {
+                return
+            }
+            guard isQuickTap else {
+                logInfo("Reading assist: long press ignored, only a quick tap reads or translates")
+                return
+            }
+            if let text {
+                guard !Screenshot.shared.isTakingScreenshot else {
+                    return
+                }
+                // The press already closed this selection's card; translating it again would only repeat it.
+                guard text != shownText else {
+                    logInfo("Reading assist: selection card closed by tapping again")
+                    return
+                }
+                logInfo("Reading assist: translating explicit selection (\(text.count) characters)")
+                // Selection APIs do not always expose bounds; anchor the shared reading card at the gesture.
+                let source = HoveredParagraph(
+                    text: text,
+                    frame: CGRect(x: location.x, y: location.y - 10, width: 1, height: 20),
+                    processIdentifier: processID ?? 0
+                )
+                translate(source, isSelection: true)
+            } else {
+                let current = NSEvent.mouseLocation
+                if hypot(current.x - location.x, current.y - location.y) <= 4 {
+                    WordLookupManager.shared.lookUp(at: location)
+                }
+            }
+        }
     }
 
     private func handleMouseMoved() {
@@ -268,6 +374,8 @@ final class HoverTranslationManager: NSObject {
 
     private func handleScroll() {
         cancelWordTap()
+        selectionQueryTask?.cancel()
+        selectionQueryTask = nil
         // Scrolling moves the text away from the outline and the card.
         dismissCard()
         guard state == .tracking else {
@@ -375,29 +483,36 @@ final class HoverTranslationManager: NSObject {
 
     // MARK: Card
 
-    private func translate(_ paragraph: HoveredParagraph) {
+    private func translate(_ paragraph: HoveredParagraph, isSelection: Bool = false) {
         translationTask?.cancel()
         cardParagraph = paragraph
 
         let service = ActionManager.shared.translateService
+        let screen = NSScreen.screens.first { $0.frame.intersects(paragraph.frame) } ?? NSScreen.main
         let model = TranslationPreviewModel(
-            serviceName: service.name(),
-            serviceIconName: service.iconName(),
+            service: service,
             activity: .translating,
-            layout: .reading(width: paragraph.frame.width + 2 * TranslationPreviewView.contentInset)
+            layout: isSelection
+                ? .selection(text: paragraph.text, screenSize: screen?.visibleFrame.size ?? CGSize(width: 800, height: 600))
+                : .reading(width: paragraph.frame.width + 2 * TranslationPreviewView.contentInset)
         )
         let cacheKey = "\(service.serviceTypeWithUniqueIdentifier())\n\(paragraph.text)"
-        if let cachedTranslation = translationCache[cacheKey] {
+        if !isSelection, let cachedTranslation = translationCache[cacheKey] {
             model.text = cachedTranslation
             model.phase = .finished
             present(model, below: paragraph)
             return
         }
+        if isSelection {
+            // Explicit requests show progress and detection failures, including text in the first language.
+            present(model, below: paragraph)
+        }
 
         translationTask = Task { [weak self] in
             do {
-                // Text already in the user's first language needs no card at all.
-                guard let query = try await ActionManager.shared.readingQuery(for: paragraph.text) else {
+                guard let query = try await ActionManager.shared.readingQuery(
+                    for: paragraph.text, isSelection: isSelection
+                ) else {
                     self?.forgetCard(for: paragraph)
                     return
                 }
@@ -405,14 +520,25 @@ final class HoverTranslationManager: NSObject {
                     return
                 }
 
-                present(model, below: paragraph)
+                if !isSelection {
+                    present(model, below: paragraph)
+                }
                 let translation = try await ActionManager.shared.translateForReading(query, service: service) { text in
                     model.text = text
                 }
                 try Task.checkCancellation()
+                guard !translation.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                    throw QueryError(type: .noResult)
+                }
                 model.text = translation
                 model.phase = .finished
-                store(translation, forKey: cacheKey)
+                if isSelection {
+                    if Defaults[.autoCopyFirstTranslatedText] {
+                        translation.copyToPasteboard()
+                    }
+                } else {
+                    store(translation, forKey: cacheKey)
+                }
             } catch is CancellationError {
                 return
             } catch {

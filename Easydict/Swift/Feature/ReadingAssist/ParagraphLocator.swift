@@ -46,14 +46,14 @@ struct ParagraphLocator: Sendable {
             return nil
         }
 
-        let candidates: [() -> (text: String, axFrame: CGRect)?] = [
-            { webParagraph(from: element, at: point) },
-            { webBlock(containing: element) },
-            { nativeParagraph(in: element, at: point) },
-            { ownText(of: element) },
+        let candidates: [(source: String, read: () -> (text: String, axFrame: CGRect)?)] = [
+            ("text markers", { webParagraph(from: element, at: point) }),
+            ("text runs", { webBlock(containing: element) }),
+            ("native text", { nativeParagraph(in: element, at: point) }),
+            ("element text", { ownText(of: element) }),
         ]
         for candidate in candidates {
-            guard let found = candidate(), let paragraph = validated(
+            guard let found = candidate.read(), let paragraph = validated(
                 text: found.text,
                 axFrame: found.axFrame,
                 point: point,
@@ -61,6 +61,11 @@ struct ParagraphLocator: Sendable {
             ) else {
                 continue
             }
+            // Length and height only, never the text, so overly broad captures can be diagnosed.
+            logInfo(
+                "Reading assist: paragraph from \(candidate.source), characters: \(paragraph.text.count), "
+                    + "height: \(Int(found.axFrame.height))"
+            )
             return paragraph
         }
         return nil
