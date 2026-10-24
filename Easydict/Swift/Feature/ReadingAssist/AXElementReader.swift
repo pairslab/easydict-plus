@@ -185,9 +185,8 @@ final class WebTextGeometry: @unchecked Sendable {
 
 // MARK: - SelectionGeometry
 
-/// Relates an app's current text selection to the pointer, so a reading gesture only uses a selection
-/// it points at. A selection stays highlighted after the user moves on, so without this check a stale
-/// selection elsewhere in the app, or in another window, would replace the word under the pointer.
+/// Relates an app's current text selection to the pointer. A translated selection stays highlighted
+/// after the user moves on; this tells whether a later gesture still points at it, or at other text.
 enum SelectionGeometry {
     // MARK: Internal
 
