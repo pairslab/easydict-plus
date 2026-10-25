@@ -214,6 +214,10 @@ public class StreamService: QueryService {
     /// for one-off questions such as a word's meaning in context. Use a dedicated instance.
     var customChatMessages: [ChatMessage]?
 
+    /// Asks translations to write math as LaTeX, for results shown in a card that renders it.
+    /// Text written back into documents keeps the source notation.
+    var writesMathAsLaTeX = false
+
     /// The optional OpenAI-compatible reasoning mode for stream services.
     /// Subclasses can override this when the selected provider supports the parameter.
     @nonobjc

@@ -60,6 +60,7 @@ final class WordLookupManager {
         contextWorkItem = nil
         loadingTasks.forEach { $0.cancel() }
         loadingTasks.removeAll()
+        audioPlayer?.stop()
         stopDismissMonitoring()
         guard presentedModel != nil else {
             return
@@ -78,6 +79,8 @@ final class WordLookupManager {
     private static let geometryRetryInterval: TimeInterval = 0.25
 
     private let eventMonitor = EventMonitorEngine()
+    /// Created on the first pronunciation, so lookups without audio do not set up a player.
+    private var audioPlayer: EZAudioPlayer?
     private let locatorQueue = DispatchQueue(label: "com.izual.Easydict.WordLookup", qos: .userInitiated)
     private let contextQueue = DispatchQueue(label: "com.izual.Easydict.WordContext", qos: .userInitiated)
 
@@ -87,6 +90,12 @@ final class WordLookupManager {
     private var loadingTasks: [Task<(), Never>] = []
     private var contextWorkItem: DispatchWorkItem?
     private var activationObservation: NSObjectProtocol?
+
+    /// The phonetic in the accent chosen in Settings, otherwise the first one.
+    private static func preferredPhonetic(in phonetics: [WordLookupModel.Phonetic]) -> WordLookupModel.Phonetic? {
+        let accent = Defaults[.pronunciation] == .uk ? "uk" : "us"
+        return phonetics.first { $0.source?.accent == accent } ?? phonetics.first
+    }
 
     private func locate(
         at mouseLocation: CGPoint,
@@ -154,6 +163,12 @@ final class WordLookupManager {
         }
 
         wordFrame = located.frame
+        model.pronounce = { [weak self, weak model] phonetic in
+            guard let self, let model, presentedModel === model else {
+                return
+            }
+            pronounce(model.word, phonetic: phonetic)
+        }
         WordLookupPanel.shared.present(model, wordFrame: wordFrame)
 
         loadingTasks.append(Task {
@@ -164,7 +179,28 @@ final class WordLookupManager {
             model.phonetics = entry.phonetics
             model.senses = entry.senses
             model.isLoadingDictionary = false
+            if Defaults[.autoPlayAudio] {
+                pronounce(model.word, phonetic: Self.preferredPhonetic(in: entry.phonetics))
+            }
         })
+    }
+
+    /// Plays the dictionary's recording for `phonetic`, or speaks the word with the default voice.
+    private func pronounce(_ word: String, phonetic: WordLookupModel.Phonetic?) {
+        let player = audioPlayer ?? EZAudioPlayer()
+        audioPlayer = player
+        player.stop()
+        guard let source = phonetic?.source else {
+            player.playTextAudio(word, textLanguage: .english)
+            return
+        }
+        if source.word.isEmpty {
+            source.word = word
+        }
+        if source.language == .auto {
+            source.language = .english
+        }
+        player.play(source, designatedService: nil)
     }
 
     private func loadContext(
@@ -222,6 +258,9 @@ final class WordLookupManager {
             // While locating, validate movement against the real word bounds when they arrive.
             if event.type == .mouseMoved, presentedModel == nil {
                 return
+            }
+            if event.type == .mouseMoved {
+                WordLookupPanel.shared.updatePointerInteraction(at: NSEvent.mouseLocation)
             }
             if event.type != .mouseMoved || !isReading(at: NSEvent.mouseLocation) {
                 logInfo("Reading assist: word lookup dismissed by event \(event.type.rawValue)")
