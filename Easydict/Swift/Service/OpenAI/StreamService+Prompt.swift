@@ -15,6 +15,10 @@ extension StreamService {
     You are a translation expert proficient in various languages, focusing solely on translating text without interpretation. You accurately understand the meanings of proper nouns, idioms, metaphors, allusions, and other obscure words in sentences, translating them appropriately based on the context and language environment. The translation should be natural and fluent. Keep the structure of the source text: preserve paragraph breaks, line breaks, list markers and numbering, and headings where they appear, without merging or splitting paragraphs. Only return the translated text, without including redundant quotes or additional notes.
     """
 
+    static let latexMathInstruction = """
+    Write mathematical formulas, equations and symbols in LaTeX: wrap inline math in $...$ and standalone equations in $$...$$. Leave text that is not math as plain text.
+    """
+
     static let dictSystemPrompt = """
     You are a word search assistant skilled in multiple languages and knowledgeable in etymology. You can help search for words, phrases, slang, abbreviations, and other information. Prioritize queries from authoritative dictionary databases, such as the Oxford Dictionary, Cambridge Dictionary, and Wikipedia. If a word or abbreviation has multiple meanings, look up the most commonly used ones.
     """
@@ -148,9 +152,9 @@ extension StreamService {
 
         ].flatMap { $0 }
 
-        var messages: [ChatMessage] =
-            enableSystemPrompt
-                ? [.init(role: .system, content: StreamService.translationSystemPrompt)] : []
+        let systemPrompt = StreamService.translationSystemPrompt
+            + (writesMathAsLaTeX ? " " + StreamService.latexMathInstruction : "")
+        var messages: [ChatMessage] = enableSystemPrompt ? [.init(role: .system, content: systemPrompt)] : []
 
         messages.append(contentsOf: chineseFewShot)
 

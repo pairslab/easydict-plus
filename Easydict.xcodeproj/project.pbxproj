@@ -209,6 +209,7 @@
 		0365B0692D3BFBDF00865F46 /* StreamService+AsyncStream.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0365B0682D3BFBDF00865F46 /* StreamService+AsyncStream.swift */; };
 		03675A3D2D7FE598004E780A /* ScreenshotOverlayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 03675A2B2D7FE598004E780A /* ScreenshotOverlayView.swift */; };
 		036806582CA829F100800B76 /* SFSafeSymbols in Frameworks */ = {isa = PBXBuildFile; productRef = 036806572CA829F100800B76 /* SFSafeSymbols */; };
+		5E7A11B12F0A000100C0DE01 /* SwiftMath in Frameworks */ = {isa = PBXBuildFile; productRef = 5E7A11B32F0A000100C0DE01 /* SwiftMath */; };
 		036A0DBB2AD941F9006E6D4F /* EZReplaceTextButton.m in Sources */ = {isa = PBXBuildFile; fileRef = 036A0DBA2AD941F9006E6D4F /* EZReplaceTextButton.m */; };
 		036BCD4A2BDE8A96009C893F /* WindowConfigurationKey.swift in Sources */ = {isa = PBXBuildFile; fileRef = 036BCD492BDE8A96009C893F /* WindowConfigurationKey.swift */; };
 		036D62812BCAB613002C95C7 /* BuiltInAIService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 036D62802BCAB613002C95C7 /* BuiltInAIService.swift */; };
@@ -230,6 +231,7 @@
 		03C945AC2916A2E3940903ED /* SystemUtility+Caret.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6D214E54437EA6F92F494098 /* SystemUtility+Caret.swift */; };
 		E5F1914CF72D29567200C99F /* TextReplacementServiceOption.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE85941526BE6C95434E5D8A /* TextReplacementServiceOption.swift */; };
 		104B0405D7AF42918CFE5A7E /* TranslationPreviewPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1BA69072FFA45623E3344EB7 /* TranslationPreviewPanel.swift */; };
+		5E7A11B42F0A000100C0DE01 /* MathText.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E7A11B52F0A000100C0DE01 /* MathText.swift */; };
 		4317BC54438C3004B8210E2A /* TranslationPreviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9285DF673FDDFAA52DF5BF27 /* TranslationPreviewView.swift */; };
 		545F703AEC71A6A6088C19C4 /* TranslationCardStyle.swift in Sources */ = {isa = PBXBuildFile; fileRef = DB599C8AA74E94EFD3C0DE5E /* TranslationCardStyle.swift */; };
 		03715A2A2E6D253E0067259C /* FocusedElementInfo.swift in Sources */ = {isa = PBXBuildFile; fileRef = 03A91F142E63E1FB00896B17 /* FocusedElementInfo.swift */; };
@@ -1032,6 +1034,7 @@
 		6D214E54437EA6F92F494098 /* SystemUtility+Caret.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SystemUtility+Caret.swift"; sourceTree = "<group>"; };
 		DE85941526BE6C95434E5D8A /* TextReplacementServiceOption.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TextReplacementServiceOption.swift; sourceTree = "<group>"; };
 		1BA69072FFA45623E3344EB7 /* TranslationPreviewPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranslationPreviewPanel.swift; sourceTree = "<group>"; };
+		5E7A11B52F0A000100C0DE01 /* MathText.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MathText.swift; sourceTree = "<group>"; };
 		9285DF673FDDFAA52DF5BF27 /* TranslationPreviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranslationPreviewView.swift; sourceTree = "<group>"; };
 		DB599C8AA74E94EFD3C0DE5E /* TranslationCardStyle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranslationCardStyle.swift; sourceTree = "<group>"; };
 		03A1B2C42F70000100A1B2C3 /* MiniMaxService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MiniMaxService.swift; sourceTree = "<group>"; };
@@ -1519,6 +1522,7 @@
 				0354E9202D3601500050E5BE /* AsyncAlgorithms in Frameworks */,
 				967712EA2B5B913600105E0F /* KeyHolder in Frameworks */,
 				036806582CA829F100800B76 /* SFSafeSymbols in Frameworks */,
+				5E7A11B12F0A000100C0DE01 /* SwiftMath in Frameworks */,
 				03B63ABF2A86967800E155ED /* CoreServices.framework in Frameworks */,
 				04D7C0A22F00000100D1C7A1 /* libz.tbd in Frameworks */,
 				038030972B4106800009230C /* CocoaLumberjackSwift in Frameworks */,
@@ -2436,6 +2440,7 @@
 			isa = PBXGroup;
 			children = (
 				03A00D872E616D56001A4D82 /* ActionManager.swift */,
+				5E7A11B52F0A000100C0DE01 /* MathText.swift */,
 				2C391B8030644DD78105F222 /* ReadingText.swift */,
 				DE85941526BE6C95434E5D8A /* TextReplacementServiceOption.swift */,
 				1BA69072FFA45623E3344EB7 /* TranslationPreviewPanel.swift */,
@@ -4099,6 +4104,7 @@
 				033E181E2C5A970A0099A7B0 /* Vapor */,
 				C4BE8E1B2C72E61B00F53204 /* LaunchAtLogin */,
 				036806572CA829F100800B76 /* SFSafeSymbols */,
+				5E7A11B32F0A000100C0DE01 /* SwiftMath */,
 				03A173E62CD120E600791B51 /* SelectedTextKit */,
 				03E534BB2CE0D38C00B37264 /* AcknowList */,
 				0354E91F2D3601500050E5BE /* AsyncAlgorithms */,
@@ -4163,6 +4169,7 @@
 				033E181D2C5A970A0099A7B0 /* XCRemoteSwiftPackageReference "vapor" */,
 				C4BE8E1A2C72E5C500F53204 /* XCRemoteSwiftPackageReference "LaunchAtLogin-Modern" */,
 				036806562CA829F100800B76 /* XCRemoteSwiftPackageReference "SFSafeSymbols" */,
+				5E7A11B22F0A000100C0DE01 /* XCRemoteSwiftPackageReference "SwiftMath" */,
 				03A173E52CD120E600791B51 /* XCRemoteSwiftPackageReference "SelectedTextKit" */,
 				03E534BA2CE0D38C00B37264 /* XCRemoteSwiftPackageReference "AcknowList" */,
 				0354E91E2D3601500050E5BE /* XCRemoteSwiftPackageReference "swift-async-algorithms" */,
@@ -4917,6 +4924,7 @@
 				03C945AC2916A2E3940903ED /* SystemUtility+Caret.swift in Sources */,
 				E5F1914CF72D29567200C99F /* TextReplacementServiceOption.swift in Sources */,
 				104B0405D7AF42918CFE5A7E /* TranslationPreviewPanel.swift in Sources */,
+				5E7A11B42F0A000100C0DE01 /* MathText.swift in Sources */,
 				4317BC54438C3004B8210E2A /* TranslationPreviewView.swift in Sources */,
 				545F703AEC71A6A6088C19C4 /* TranslationCardStyle.swift in Sources */,
 				EA9943F02B5354C400EE7B97 /* ShowWindowPositionExtensions.swift in Sources */,
@@ -5395,6 +5403,14 @@
 				minimumVersion = 0.0.5;
 			};
 		};
+		5E7A11B22F0A000100C0DE01 /* XCRemoteSwiftPackageReference "SwiftMath" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/mgriebling/SwiftMath.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 1.7.3;
+			};
+		};
 		036806562CA829F100800B76 /* XCRemoteSwiftPackageReference "SFSafeSymbols" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/SFSafeSymbols/SFSafeSymbols";
@@ -5563,6 +5579,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 0364EC882C208EB40036B61B /* XCRemoteSwiftPackageReference "KeySender" */;
 			productName = KeySender;
+		};
+		5E7A11B32F0A000100C0DE01 /* SwiftMath */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 5E7A11B22F0A000100C0DE01 /* XCRemoteSwiftPackageReference "SwiftMath" */;
+			productName = SwiftMath;
 		};
 		036806572CA829F100800B76 /* SFSafeSymbols */ = {
 			isa = XCSwiftPackageProductDependency;

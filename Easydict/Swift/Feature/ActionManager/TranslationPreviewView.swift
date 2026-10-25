@@ -249,14 +249,9 @@ struct TranslationPreviewView: View {
     private var translatedText: some View {
         Group {
             if model.layout.maximumContentHeight != nil {
-                let paragraphs = model.text.split(omittingEmptySubsequences: false, whereSeparator: \.isNewline)
-                VStack(alignment: .leading, spacing: 8) {
-                    ForEach(Array(paragraphs.enumerated()), id: \.offset) { _, paragraph in
-                        Text(verbatim: String(paragraph))
-                            .frame(minHeight: paragraph.isEmpty ? model.layout.fontSize : nil, alignment: .leading)
-                    }
-                }
+                MathText(text: model.text, fontSize: model.layout.fontSize, paragraphSpacing: 8)
             } else {
+                // Write-back previews show the text exactly as it will be inserted.
                 Text(model.text)
                     .lineLimit(model.layout.maxLines)
                     // Compact write-back previews show the latest words while streaming.

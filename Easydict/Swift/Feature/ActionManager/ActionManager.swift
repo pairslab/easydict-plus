@@ -119,6 +119,8 @@ class ActionManager: NSObject {
         onUpdate: @escaping @MainActor (String) -> ()
     ) async throws
         -> String {
+        // The reading card renders LaTeX, so formulas come back readable instead of as flattened symbols.
+        (service as? StreamService)?.writesMathAsLaTeX = true
         let document = ReadingText(queryModel.inputText)
         if queryModel.actionType == .shortcutQuery, !document.segments.isEmpty {
             return try await translateReadingSegments(document, query: queryModel, service: service, onUpdate: onUpdate)
@@ -515,6 +517,7 @@ extension ActionManager {
                     segmentQuery.userTargetLanguage = targetLanguage
                     let segmentService = type(of: service).init()
                     segmentService.uuid = service.uuid
+                    (segmentService as? StreamService)?.writesMathAsLaTeX = true
 
                     let translated = try await self.processText(
                         queryModel: segmentQuery, type: .translate, service: segmentService
