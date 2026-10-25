@@ -183,6 +183,71 @@ final class WebTextGeometry: @unchecked Sendable {
     private var completeTreePIDs = Set<pid_t>()
 }
 
+// MARK: - WebSelection
+
+/// Reads a web document's selection through its text-marker range.
+///
+/// Chromium's PDF viewer and web pages keep a document selection there without exposing it as the
+/// focused element's selected text, so the usual accessibility read finds nothing. Read-only: no copy
+/// command and no pasteboard access.
+enum WebSelection {
+    // MARK: Internal
+
+    /// The selected text of the web document under `axPoint`, or of the one holding focus, if any.
+    /// Every call waits on the target app, so run it off the main thread.
+    static func text(at axPoint: CGPoint, processIdentifier: pid_t) -> String? {
+        var documents: [AXUIElement] = []
+        if let element = AXElementReader.element(at: axPoint),
+           AXElementReader.processIdentifier(of: element) == processIdentifier,
+           let document = webArea(above: element) {
+            documents.append(document)
+        }
+        if let focused = focusedElement(of: processIdentifier), let document = webArea(above: focused),
+           !documents.contains(where: { CFEqual($0, document) }) {
+            documents.append(document)
+        }
+        for document in documents {
+            guard let range = AXElementReader.attribute(document, "AXSelectedTextMarkerRange"),
+                  let text = AXElementReader.parameterizedAttribute(
+                      document, "AXStringForTextMarkerRange", range
+                  ) as? String,
+                  !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                continue
+            }
+            return text
+        }
+        return nil
+    }
+
+    // MARK: Private
+
+    private static let maximumDepth = 32
+
+    private static func focusedElement(of processIdentifier: pid_t) -> AXUIElement? {
+        let app = AXUIElementCreateApplication(processIdentifier)
+        guard let value = AXElementReader.attribute(app, kAXFocusedUIElementAttribute),
+              CFGetTypeID(value) == AXUIElementGetTypeID() else {
+            return nil
+        }
+        return (value as! AXUIElement)
+    }
+
+    /// The nearest web document at or above `element`; an embedded PDF is found before its page.
+    private static func webArea(above element: AXUIElement) -> AXUIElement? {
+        var node = element
+        for _ in 0 ..< maximumDepth {
+            if AXElementReader.role(of: node) == "AXWebArea" {
+                return node
+            }
+            guard let parent = AXElementReader.parent(of: node) else {
+                return nil
+            }
+            node = parent
+        }
+        return nil
+    }
+}
+
 // MARK: - AXCoordinateSpace
 
 /// Converts between Accessibility (top-left origin) and Cocoa (bottom-left origin) screen rects.

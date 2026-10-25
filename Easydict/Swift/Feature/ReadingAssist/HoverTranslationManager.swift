@@ -264,7 +264,8 @@ final class HoverTranslationManager: NSObject {
             cardTextAtPress = cardParagraph?.text
             reset()
             wordTapStartedAt = event.timestamp
-            selectionProbe = Task { await SystemUtility.shared.readingSelection() }
+            let pressLocation = NSEvent.mouseLocation
+            selectionProbe = Task { await SystemUtility.shared.readingSelection(at: pressLocation) }
             WordLookupManager.shared.dismiss()
         }
         if startsGesture, let modifierFlag, heldModifiers == modifierFlag {
@@ -295,7 +296,7 @@ final class HoverTranslationManager: NSObject {
                   !Self.isModifierInUse(at: NSEvent.mouseLocation) else {
                 return
             }
-            // With a selection a hold never becomes paragraph mode; only a quick tap translates the selection.
+            // With a selection a hold never becomes paragraph mode; releasing it translates the selection.
             guard selection == nil, let startedAt = wordTapStartedAt,
                   !Self.keyWentDown(since: startedAt) else {
                 return
@@ -330,10 +331,6 @@ final class HoverTranslationManager: NSObject {
                   NSWorkspace.shared.frontmostApplication?.processIdentifier == processID else {
                 return
             }
-            guard isQuickTap else {
-                logInfo("Reading assist: long press ignored, only a quick tap reads or translates")
-                return
-            }
             if let text {
                 guard !Screenshot.shared.isTakingScreenshot else {
                     return
@@ -351,6 +348,9 @@ final class HoverTranslationManager: NSObject {
                     processIdentifier: processID ?? 0
                 )
                 translate(source, isSelection: true)
+            } else if !isQuickTap {
+                // Without a selection, a hold that did not become paragraph mode is not a word tap.
+                logInfo("Reading assist: long press ignored, only a quick tap reads the word")
             } else {
                 let current = NSEvent.mouseLocation
                 if hypot(current.x - location.x, current.y - location.y) <= 4 {
