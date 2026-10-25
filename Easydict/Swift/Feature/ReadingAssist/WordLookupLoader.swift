@@ -93,7 +93,7 @@ enum WordLookupLoader {
             guard let value = phonetic.value?.trimmingCharacters(in: .whitespaces), !value.isEmpty else {
                 return nil
             }
-            return WordLookupModel.Phonetic(label: phonetic.name ?? "", value: value)
+            return WordLookupModel.Phonetic(label: phonetic.name ?? "", value: value, source: phonetic)
         }
         entry.senses = (wordResult.parts ?? []).compactMap { part in
             let meaning = part.means.joined(separator: "；").trimmingCharacters(in: .whitespaces)

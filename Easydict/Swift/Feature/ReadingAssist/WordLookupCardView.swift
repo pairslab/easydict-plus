@@ -26,6 +26,8 @@ final class WordLookupModel: ObservableObject {
         /// Short accent label such as 英 or 美.
         let label: String
         let value: String
+        /// The dictionary's phonetic, carrying its accent and recorded audio when it has them.
+        var source: EZWordPhonetic?
     }
 
     struct Sense: Hashable {
@@ -45,6 +47,9 @@ final class WordLookupModel: ObservableObject {
     /// What the word means in the sentence it was read in.
     @Published var contextualMeaning = ""
     @Published var isLoadingContext = true
+
+    /// Plays the word, in the accent of `phonetic` when given; set by the presenter.
+    var pronounce: ((Phonetic?) -> ())?
 }
 
 // MARK: - WordLookupCardView
@@ -99,13 +104,33 @@ struct WordLookupCardView: View {
         ViewThatFits(in: .horizontal) {
             HStack(alignment: .firstTextBaseline, spacing: 10) {
                 wordTitle
-                phonetics
+                pronunciation
             }
             VStack(alignment: .leading, spacing: 4) {
                 wordTitle
-                phonetics
+                pronunciation
             }
         }
+    }
+
+    /// Each phonetic plays its own accent; without phonetics, one button plays the word.
+    @ViewBuilder
+    private var pronunciation: some View {
+        if model.phonetics.isEmpty {
+            if !model.isLoadingDictionary {
+                pronounceButton(nil) {
+                    speakerImage
+                }
+            }
+        } else {
+            phonetics
+        }
+    }
+
+    private var speakerImage: some View {
+        Image(systemSymbol: .speakerWave2)
+            .font(.system(size: 11))
+            .foregroundStyle(.secondary)
     }
 
     private var wordTitle: some View {
@@ -119,15 +144,18 @@ struct WordLookupCardView: View {
     private var phonetics: some View {
         HStack(alignment: .firstTextBaseline, spacing: 10) {
             ForEach(model.phonetics, id: \.self) { phonetic in
-                HStack(spacing: 3) {
-                    Text(phonetic.label)
-                        .foregroundStyle(.tertiary)
-                    Text("/\(phonetic.value)/")
-                        .foregroundStyle(.secondary)
+                pronounceButton(phonetic) {
+                    HStack(spacing: 3) {
+                        Text(phonetic.label)
+                            .foregroundStyle(.tertiary)
+                        Text("/\(phonetic.value)/")
+                            .foregroundStyle(.secondary)
+                        speakerImage
+                    }
+                    .font(.system(size: 12))
+                    .lineLimit(1)
+                    .fixedSize()
                 }
-                .font(.system(size: 12))
-                .lineLimit(1)
-                .fixedSize()
             }
         }
     }
@@ -188,6 +216,18 @@ struct WordLookupCardView: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
+    }
+
+    private func pronounceButton(_ phonetic: WordLookupModel.Phonetic?, label: () -> some View) -> some View {
+        Button {
+            model.pronounce?(phonetic)
+        } label: {
+            label()
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .help(Text("word_lookup.pronounce"))
+        .accessibilityLabel(Text("word_lookup.pronounce"))
     }
 }
 
